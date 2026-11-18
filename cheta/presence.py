@@ -22,7 +22,7 @@ class PresenceTracker:
     _count: int = 0
 
     def update(self, person: Person | None, now: float) -> list[tuple[str, Person]]:
-        """Feed one observation (None = nobody known). Returns new ``("arrived"|"left", person)``."""
+        """Feed one observation (None = nobody known); returns new (kind, person) events."""
         out: list[tuple[str, Person]] = []
         if person is not None:
             if self.current is not None and person.id == self.current.id:
