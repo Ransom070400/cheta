@@ -105,8 +105,7 @@ def download_model(
         raise KeyError(f"unknown model {name!r}; choose from {sorted(MODELS)}") from None
 
     paths = [
-        Path(downloader(repo_id=spec.repo_id, filename=f, cache_dir=cache_dir))
-        for f in spec.files
+        Path(downloader(repo_id=spec.repo_id, filename=f, cache_dir=cache_dir)) for f in spec.files
     ]
     if spec.primary is not None:
         return paths[spec.files.index(spec.primary)]
@@ -133,7 +132,9 @@ def download_all(
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for ``python -m cheta.models``."""
     parser = argparse.ArgumentParser(prog="python -m cheta.models", description=__doc__)
-    parser.add_argument("names", nargs="*", help=f"models to fetch (default: all of {sorted(MODELS)})")
+    parser.add_argument(
+        "names", nargs="*", help=f"models to fetch (default: all of {sorted(MODELS)})"
+    )
     parser.add_argument("--cache-dir", default=None, help="override the Hugging Face cache dir")
     args = parser.parse_args(argv)
     for name in args.names:
