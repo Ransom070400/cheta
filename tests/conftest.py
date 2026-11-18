@@ -43,3 +43,13 @@ def key() -> bytes:
 @pytest.fixture
 def store(tmp_path: Path, key: bytes) -> Store:
     return Store(tmp_path, "test", key=key)
+
+
+class LiveEmbedder:
+    """Embedder whose output can be changed from the test (simulates who is in front of the camera)."""
+
+    def __init__(self) -> None:
+        self.current: NDArray[np.float32] | None = None
+
+    def embed(self, frame: Frame) -> NDArray[np.float32] | None:
+        return self.current
