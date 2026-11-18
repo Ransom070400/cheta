@@ -56,9 +56,7 @@ class Store:
             )
         return person
 
-    def add_face_embeddings(
-        self, person_id: str, embeddings: list[NDArray[np.float32]]
-    ) -> None:
+    def add_face_embeddings(self, person_id: str, embeddings: list[NDArray[np.float32]]) -> None:
         """Encrypt and store face embeddings for a person."""
         with self._db:
             self._db.executemany(
