@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import time
 from collections.abc import Sequence
 
+from cheta.face.matcher import DEFAULT_THRESHOLD
 from cheta.identity import Identity
 
 
 def _identity(args: argparse.Namespace) -> Identity:
-    return Identity(app=args.app, camera=args.camera, data_dir=args.data_dir)
+    return Identity(
+        app=args.app,
+        camera=args.camera,
+        data_dir=args.data_dir,
+        threshold=getattr(args, "threshold", DEFAULT_THRESHOLD),
+    )
 
 
 def cmd_enroll(args: argparse.Namespace) -> int:
@@ -45,6 +52,29 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_demo(args: argparse.Namespace) -> int:
+    """Live recognition: print who is in view and arrival/left events until Ctrl-C."""
+    idt = _identity(args)
+    idt.on_person_arrived(lambda p: print(f"[arrived] {p.name} ({p.confidence:.2f})"))
+    idt.on_person_left(lambda p: print(f"[left]    {p.name}"))
+    idt.start()
+    print("Watching the camera. Press Ctrl-C to stop.")
+    last = ""
+    try:
+        while True:
+            who = idt.who_is_here()
+            line = f"{who.name} ({who.confidence:.2f})" if who else "nobody known"
+            if line != last:
+                print(f"here: {line}")
+                last = line
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        idt.close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(prog="cheta", description=__doc__)
@@ -57,6 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
     enroll.add_argument("--name", required=True)
     enroll.add_argument("--yes", action="store_true", help="confirm consent without prompting")
     enroll.set_defaults(func=cmd_enroll)
+
+    demo = sub.add_parser("demo", help="live recognition from the camera")
+    demo.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
+    demo.set_defaults(func=cmd_demo)
 
     lst = sub.add_parser("list", help="list enrolled people")
     lst.set_defaults(func=cmd_list)
