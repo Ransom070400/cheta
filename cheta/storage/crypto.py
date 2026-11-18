@@ -69,4 +69,5 @@ def decrypt_embedding(key: bytes, token: bytes) -> NDArray[np.float32]:
 
     Raises ``cryptography.fernet.InvalidToken`` if the key is wrong or the data was tampered with.
     """
-    return np.frombuffer(Fernet(key).decrypt(token), dtype=np.float32).copy()
+    arr: NDArray[np.float32] = np.frombuffer(Fernet(key).decrypt(token), dtype=np.float32).copy()
+    return arr
