@@ -46,7 +46,7 @@ def store(tmp_path: Path, key: bytes) -> Store:
 
 
 class LiveEmbedder:
-    """Embedder whose output can be changed from the test (simulates who is in front of the camera)."""
+    """Embedder whose output the test can change (who is in front of the camera)."""
 
     def __init__(self) -> None:
         self.current: NDArray[np.float32] | None = None
