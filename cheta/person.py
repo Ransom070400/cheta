@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Person:
-    """A known person. ``confidence`` is the recognition score in [0, 1] (1.0 right after enroll)."""
+    """A known person. ``confidence`` is the recognition score in [0, 1]."""
 
     id: str
     name: str
