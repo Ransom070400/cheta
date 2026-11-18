@@ -53,3 +53,28 @@ class LiveEmbedder:
 
     def embed(self, frame: Frame) -> NDArray[np.float32] | None:
         return self.current
+
+
+class FakeTextEmbedder:
+    """Deterministic bag-of-words embedder (hashed tokens) so CI needs no model download."""
+
+    DIM = 384
+
+    @staticmethod
+    def _tokens(text: str) -> list[str]:
+        return [t for t in "".join(c.lower() if c.isalnum() else " " for c in text).split() if t]
+
+    def _embed(self, text: str) -> NDArray[np.float32]:
+        import zlib
+
+        v = np.zeros(self.DIM, dtype=np.float32)
+        for tok in self._tokens(text):
+            v[zlib.crc32(tok.encode()) % self.DIM] += 1.0
+        n = float(np.linalg.norm(v))
+        return v / n if n else v
+
+    def embed_document(self, text: str) -> NDArray[np.float32]:
+        return self._embed(text)
+
+    def embed_query(self, text: str) -> NDArray[np.float32]:
+        return self._embed(text)
