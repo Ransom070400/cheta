@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 
 import cv2
 
@@ -27,7 +27,7 @@ class WebcamSource:
 
     def read(self) -> Frame | None:
         ok, frame = self._cap.read()
-        return frame if ok else None
+        return cast(Frame, frame) if ok else None
 
     def close(self) -> None:
         self._cap.release()
