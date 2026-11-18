@@ -16,7 +16,7 @@ from cheta.face.capture import FrameSource, WebcamSource
 from cheta.face.embedder import FaceEmbedder, SFaceEmbedder
 from cheta.face.matcher import DEFAULT_THRESHOLD, match
 from cheta.person import Person
-from cheta.presence import PresenceTracker
+from cheta.presence import ABSENCE_SECONDS, ARRIVE_FRAMES, PresenceTracker
 from cheta.storage import Store
 
 FACE_SAMPLES = 5
@@ -42,6 +42,8 @@ class Identity:
         data_dir: str | Path = "~/.cheta",
         *,
         threshold: float = DEFAULT_THRESHOLD,
+        arrive_frames: int = ARRIVE_FRAMES,
+        absence_seconds: float = ABSENCE_SECONDS,
         store: Store | None = None,
         face_embedder: FaceEmbedder | None = None,
         frame_source: FrameSource | None = None,
@@ -55,7 +57,9 @@ class Identity:
         self._gallery: dict[str, list[NDArray[np.float32]]] | None = None
         self._arrived_cbs: list[PersonCallback] = []
         self._left_cbs: list[PersonCallback] = []
-        self._tracker = PresenceTracker()
+        self._arrive_frames = arrive_frames
+        self._absence_seconds = absence_seconds
+        self._tracker = PresenceTracker(arrive_frames, absence_seconds)
         self._latest: Person | None = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -171,7 +175,7 @@ class Identity:
         if self._thread is not None:
             return
         self._gallery = None
-        self._tracker = PresenceTracker()
+        self._tracker = PresenceTracker(self._arrive_frames, self._absence_seconds)
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, name="cheta-recognize", daemon=True)
         self._thread.start()
