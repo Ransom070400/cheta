@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import functools
 import sqlite3
+import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -29,6 +33,20 @@ CREATE INDEX IF NOT EXISTS face_embedding_person ON face_embedding(person_id);
 """
 
 
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _locked(fn: F) -> F:
+    """Serialise access to the shared SQLite connection across threads."""
+
+    @functools.wraps(fn)
+    def wrapper(self: Store, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return fn(self, *args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
+
+
 class Store:
     """Encrypted persistent store. Biometric embeddings are only ever written encrypted."""
 
@@ -37,12 +55,14 @@ class Store:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.path = self.data_dir / f"{app}.db"
         self._key = key if key is not None else load_or_create_key(self.data_dir, app)
-        self._db = sqlite3.connect(self.path)
+        self._lock = threading.RLock()
+        self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.execute("PRAGMA secure_delete = ON")  # overwrite deleted content
         self._db.executescript(SCHEMA)
         self.path.chmod(0o600)
 
+    @_locked
     def add_person(self, name: str, consent: bool) -> Person:
         """Create a person. Refuses without explicit consent."""
         if consent is not True:
@@ -56,6 +76,7 @@ class Store:
             )
         return person
 
+    @_locked
     def add_face_embeddings(self, person_id: str, embeddings: list[NDArray[np.float32]]) -> None:
         """Encrypt and store face embeddings for a person."""
         with self._db:
@@ -64,6 +85,7 @@ class Store:
                 [(person_id, encrypt_embedding(self._key, e)) for e in embeddings],
             )
 
+    @_locked
     def face_embeddings(self, person_id: str) -> list[NDArray[np.float32]]:
         """Return a person's decrypted face embeddings."""
         rows = self._db.execute(
@@ -71,6 +93,7 @@ class Store:
         ).fetchall()
         return [decrypt_embedding(self._key, r[0]) for r in rows]
 
+    @_locked
     def all_face_embeddings(self) -> dict[str, list[NDArray[np.float32]]]:
         """Return decrypted face embeddings for everyone, keyed by person id."""
         out: dict[str, list[NDArray[np.float32]]] = {}
@@ -79,16 +102,19 @@ class Store:
             out.setdefault(person_id, []).append(decrypt_embedding(self._key, blob))
         return out
 
+    @_locked
     def list_people(self) -> list[Person]:
         """Return all enrolled people."""
         rows = self._db.execute("SELECT id, name FROM person ORDER BY created_at").fetchall()
         return [Person(id=r[0], name=r[1]) for r in rows]
 
+    @_locked
     def get_person(self, person_id: str) -> Person | None:
         """Look a person up by id."""
         row = self._db.execute("SELECT id, name FROM person WHERE id = ?", (person_id,)).fetchone()
         return Person(id=row[0], name=row[1]) if row else None
 
+    @_locked
     def find_by_name(self, name: str) -> list[Person]:
         """Return people with the given name (case-insensitive)."""
         rows = self._db.execute(
@@ -97,12 +123,14 @@ class Store:
         ).fetchall()
         return [Person(id=r[0], name=r[1]) for r in rows]
 
+    @_locked
     def delete_person(self, person_id: str) -> None:
         """Hard-delete a person and all their biometrics."""
         with self._db:
             self._db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         self._db.execute("VACUUM")
 
+    @_locked
     def close(self) -> None:
         """Close the database connection."""
         self._db.close()
