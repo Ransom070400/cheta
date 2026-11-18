@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from cheta.person import Person
 
@@ -20,7 +20,6 @@ class PresenceTracker:
     _last_seen: float = 0.0
     _candidate: str | None = None
     _count: int = 0
-    events: list[tuple[str, Person]] = field(default_factory=list)
 
     def update(self, person: Person | None, now: float) -> list[tuple[str, Person]]:
         """Feed one observation (None = nobody known). Returns new ``("arrived"|"left", person)``."""
