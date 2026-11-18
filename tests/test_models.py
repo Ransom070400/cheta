@@ -1,0 +1,46 @@
+from pathlib import Path
+
+import pytest
+
+from cheta import models
+
+
+def fake_downloader(**kwargs: object) -> str:
+    """Mimic hf_hub_download's snapshot layout without touching the network."""
+    path = Path(str(kwargs["cache_dir"])) / "snapshots" / "abc" / str(kwargs["filename"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x")
+    return str(path)
+
+
+def test_registry_has_expected_models() -> None:
+    assert set(models.MODELS) == {"yunet", "sface", "silero_vad", "ecapa", "bge"}
+
+
+def test_single_file_returns_file(tmp_path: Path) -> None:
+    p = models.download_model("yunet", cache_dir=tmp_path, downloader=fake_downloader)
+    assert p.name == "face_detection_yunet_2023mar.onnx"
+    assert p.exists()
+
+
+def test_nested_primary_returns_file(tmp_path: Path) -> None:
+    p = models.download_model("silero_vad", cache_dir=tmp_path, downloader=fake_downloader)
+    assert p.parts[-2:] == ("onnx", "model.onnx")
+
+
+def test_multi_file_returns_snapshot_dir(tmp_path: Path) -> None:
+    for name in ("ecapa", "bge"):
+        root = models.download_model(name, cache_dir=tmp_path, downloader=fake_downloader)
+        assert root.name == "abc"
+        for f in models.MODELS[name].files:
+            assert (root / f).exists()
+
+
+def test_download_all(tmp_path: Path) -> None:
+    out = models.download_all(cache_dir=tmp_path, downloader=fake_downloader)
+    assert set(out) == set(models.MODELS)
+
+
+def test_unknown_model_raises() -> None:
+    with pytest.raises(KeyError):
+        models.download_model("nope")
