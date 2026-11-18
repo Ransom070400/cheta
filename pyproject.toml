@@ -13,9 +13,6 @@ dependencies = [
     "huggingface-hub>=0.24",
 ]
 
-[project.optional-dependencies]
-robot = ["reachy-mini"]
-
 [project.scripts]
 cheta = "cheta.cli:main"
 
