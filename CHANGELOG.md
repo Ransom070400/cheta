@@ -14,6 +14,10 @@ First release.
 - The OS keyring call times out after 5 s and falls back to a 0600 key file. If a database already
   exists and the keyring is unresponsive with no key file, cheta refuses instead of creating a new
   key that would orphan the data.
-- Per-person semantic memory with optional expiry.
+- Per-person semantic memory with optional expiry. Memory text and memory embeddings are both
+  encrypted; search decrypts one person's memories and ranks them in NumPy (no sqlite-vec).
+- Every model is pinned to the exact Hugging Face commit cheta was tested with.
+- `Identity(single_modality_factor=...)` sets the confidence penalty for a lone face or voice.
+- `cheta calibrate DIR` recommends a `voice_threshold` from your own recordings.
 - Reachy Mini support (`cheta[robot]`) and `examples/greeter.py`.
 - CLI: `cheta enroll | list | forget | demo | listen | remember | recall`.
