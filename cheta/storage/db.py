@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import numpy as np
-from cryptography.fernet import InvalidToken
 from numpy.typing import NDArray
 
 from cheta.memory.types import Memory
@@ -55,6 +54,8 @@ CREATE TABLE IF NOT EXISTS memory (
 CREATE INDEX IF NOT EXISTS memory_person ON memory(person_id);
 """
 
+
+FERNET_PREFIX = b"gAAAA"
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -252,12 +253,15 @@ class Store:
         return Memory(row[0], row[1], text, row[3], row[4], *([] if score is None else [score]))
 
     def _load_embedding(self, blob: bytes) -> NDArray[np.float32]:
-        """Decrypt a memory embedding (raw legacy rows pass through)."""
-        try:
+        """Decrypt a memory embedding. Raw (pre-encryption) rows pass through.
+
+        Fernet tokens always start with ``gAAAA``; anything else is a legacy raw vector. A token
+        that fails to decrypt (wrong key) must raise, never be read as raw floats.
+        """
+        if blob.startswith(FERNET_PREFIX):
             return decrypt_embedding(self._key, blob)
-        except InvalidToken:
-            arr: NDArray[np.float32] = np.frombuffer(blob, dtype=np.float32).copy()
-            return arr
+        arr: NDArray[np.float32] = np.frombuffer(blob, dtype=np.float32).copy()
+        return arr
 
     @_locked
     def close(self) -> None:
