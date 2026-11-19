@@ -16,6 +16,9 @@ def _identity(args: argparse.Namespace) -> Identity:
         camera=args.camera,
         data_dir=args.data_dir,
         threshold=getattr(args, "threshold", DEFAULT_THRESHOLD),
+        liveness=not getattr(args, "no_liveness", False),
+        listen_voice=getattr(args, "voice", False),
+        on_prompt=print,
     )
 
 
@@ -138,6 +141,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo = sub.add_parser("demo", help="live recognition from the camera")
     demo.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
+    demo.add_argument("--voice", action="store_true", help="also listen to the mic and fuse voice")
+    demo.add_argument(
+        "--no-liveness", action="store_true", help="skip the head-turn check (photos will pass!)"
+    )
     demo.set_defaults(func=cmd_demo)
 
     forget = sub.add_parser("forget", help="delete a person and all their data")
