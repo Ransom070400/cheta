@@ -5,8 +5,9 @@ perfect match to 1. Then:
 
 * face and voice agree on the same person: confidence = 1 - (1 - face) * (1 - voice), so two
   independent signals are stronger than either alone;
-* only one modality is available: its normalised score times ``SINGLE_MODALITY_FACTOR``
-  (a lower confidence, since there is nothing to corroborate it);
+* only one modality is available: its normalised score times ``single_factor`` (default
+  ``SINGLE_MODALITY_FACTOR``, a lower confidence since there is nothing to corroborate it;
+  pass 1.0 for no penalty);
 * they name different people: no decision (None), because a conflict is safer than a guess.
 """
 
@@ -33,8 +34,14 @@ class Evidence:
         return min(1.0, max(0.0, (self.score - self.threshold) / (1.0 - self.threshold)))
 
 
-def fuse(face: Evidence | None, voice: Evidence | None) -> tuple[str, float] | None:
+def fuse(
+    face: Evidence | None,
+    voice: Evidence | None,
+    single_factor: float = SINGLE_MODALITY_FACTOR,
+) -> tuple[str, float] | None:
     """Return ``(person_id, confidence)``, or None if there is no evidence or it conflicts."""
+    if not 0.0 < single_factor <= 1.0:
+        raise ValueError("single_factor must be in (0, 1]")
     if face is None and voice is None:
         return None
     if face is not None and voice is not None:
@@ -44,4 +51,4 @@ def fuse(face: Evidence | None, voice: Evidence | None) -> tuple[str, float] | N
         return face.person_id, confidence
     only = face if face is not None else voice
     assert only is not None
-    return only.person_id, only.normalised * SINGLE_MODALITY_FACTOR
+    return only.person_id, only.normalised * single_factor
