@@ -25,6 +25,9 @@ dependencies = [
 [project.scripts]
 cheta = "cheta.cli:main"
 
+[project.optional-dependencies]
+robot = ["reachy-mini>=1.14; python_version >= '3.11'"]
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
 
@@ -50,3 +53,13 @@ addopts = "-m 'not network'"
 [[tool.mypy.overrides]]
 module = ["sqlite_vec", "sentence_transformers", "onnxruntime", "sounddevice", "speechbrain.*", "torch"]
 ignore_missing_imports = true
+
+# reachy-mini needs PyGObject only on Linux, but uv resolves every platform at once and would try
+# to compile it (and pycairo) from source on any machine. Static metadata avoids the build.
+[[tool.uv.dependency-metadata]]
+name = "pygobject"
+requires-dist = ["pycairo>=1.16"]
+
+[[tool.uv.dependency-metadata]]
+name = "pycairo"
+requires-dist = []
