@@ -44,3 +44,20 @@ def test_download_all(tmp_path: Path) -> None:
 def test_unknown_model_raises() -> None:
     with pytest.raises(KeyError):
         models.download_model("nope")
+
+
+@pytest.mark.parametrize("name", sorted(models.MODELS))
+def test_every_model_is_pinned_to_a_full_commit_hash(name: str) -> None:
+    rev = models.MODELS[name].revision
+    assert len(rev) == 40 and all(c in "0123456789abcdef" for c in rev)
+
+
+def test_downloader_receives_the_pinned_revision(tmp_path: Path) -> None:
+    seen: list[object] = []
+
+    def spy(**kwargs: object) -> str:
+        seen.append(kwargs["revision"])
+        return fake_downloader(**kwargs)
+
+    models.download_model("bge", cache_dir=tmp_path, downloader=spy)
+    assert seen and set(seen) == {models.MODELS["bge"].revision}
