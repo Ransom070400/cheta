@@ -1,6 +1,9 @@
 import threading
 
+import pytest
+
 from cheta import Identity
+from cheta.fusion import SINGLE_MODALITY_FACTOR
 from cheta.person import Person
 from cheta.storage import Store
 from tests.conftest import FakeSource, LiveEmbedder, rand_emb
@@ -10,7 +13,10 @@ def setup(store: Store) -> tuple[Identity, LiveEmbedder, Person]:
     p = store.add_person("Dave", consent=True)
     store.add_face_embeddings(p.id, [rand_emb(1)])
     emb = LiveEmbedder()
-    return Identity("test", store=store, face_embedder=emb, frame_source=FakeSource()), emb, p
+    idt = Identity(
+        "test", store=store, face_embedder=emb, frame_source=FakeSource(), liveness=False
+    )
+    return idt, emb, p
 
 
 def test_who_is_here_known(store: Store) -> None:
@@ -18,7 +24,7 @@ def test_who_is_here_known(store: Store) -> None:
     emb.current = rand_emb(1)
     who = idt.who_is_here()
     assert who is not None and who.id == p.id and who.name == "Dave"
-    assert who.confidence > 0.99
+    assert who.confidence == pytest.approx(SINGLE_MODALITY_FACTOR)  # perfect, but face only
 
 
 def test_stranger_and_no_face_return_none(store: Store) -> None:
