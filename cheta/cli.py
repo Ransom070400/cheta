@@ -8,6 +8,7 @@ from collections.abc import Sequence
 
 from cheta.face.matcher import DEFAULT_THRESHOLD
 from cheta.identity import DEFAULT_VOICE_THRESHOLD, Identity
+from cheta.person import Person
 
 
 def _identity(args: argparse.Namespace) -> Identity:
@@ -125,6 +126,48 @@ def cmd_listen(args: argparse.Namespace) -> int:
     return 0
 
 
+def _one_person(idt: Identity, name: str) -> Person | None:
+    matches = idt.store.find_by_name(name)
+    if not matches:
+        print(f"No one called {name!r} is enrolled.")
+        return None
+    if len(matches) > 1:
+        print(f"Several people are called {name!r}; use `cheta list` to tell them apart.")
+        return None
+    return matches[0]
+
+
+def cmd_remember(args: argparse.Namespace) -> int:
+    """Store a fact about an enrolled person."""
+    idt = _identity(args)
+    try:
+        person = _one_person(idt, args.name)
+        if person is None:
+            return 1
+        idt.remember(person, args.text, expires_in_days=args.expires_days)
+    finally:
+        idt.close()
+    print(f"Remembered for {person.name}: {args.text}")
+    return 0
+
+
+def cmd_recall(args: argparse.Namespace) -> int:
+    """Look up what is remembered about a person."""
+    idt = _identity(args)
+    try:
+        person = _one_person(idt, args.name)
+        if person is None:
+            return 1
+        memories = idt.recall(person, args.query, k=args.k)
+    finally:
+        idt.close()
+    for m in memories:
+        print(f"{m.score:.2f}  {m.text}")
+    if not memories:
+        print("Nothing remembered.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(prog="cheta", description=__doc__)
@@ -158,6 +201,18 @@ def build_parser() -> argparse.ArgumentParser:
     listen.add_argument("--seconds", type=float, default=4.0)
     listen.add_argument("--threshold", type=float, default=DEFAULT_VOICE_THRESHOLD)
     listen.set_defaults(func=cmd_listen)
+
+    remember = sub.add_parser("remember", help="store a fact about an enrolled person")
+    remember.add_argument("--name", required=True)
+    remember.add_argument("text")
+    remember.add_argument("--expires-days", type=int, default=None)
+    remember.set_defaults(func=cmd_remember)
+
+    recall = sub.add_parser("recall", help="look up facts about an enrolled person")
+    recall.add_argument("--name", required=True)
+    recall.add_argument("query")
+    recall.add_argument("-k", type=int, default=5)
+    recall.set_defaults(func=cmd_recall)
 
     lst = sub.add_parser("list", help="list enrolled people")
     lst.set_defaults(func=cmd_list)
