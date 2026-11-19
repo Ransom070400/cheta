@@ -7,7 +7,13 @@ from tests.conftest import FakeEmbedder, FakeSource, rand_emb
 
 
 def make(store, seq):  # type: ignore[no-untyped-def]
-    return Identity("test", store=store, face_embedder=FakeEmbedder(seq), frame_source=FakeSource())
+    return Identity(
+        "test",
+        store=store,
+        face_embedder=FakeEmbedder(seq),
+        frame_source=FakeSource(),
+        liveness=False,
+    )
 
 
 def test_refuses_without_consent(store) -> None:  # type: ignore[no-untyped-def]

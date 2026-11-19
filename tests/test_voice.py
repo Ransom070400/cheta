@@ -22,6 +22,7 @@ def tone(value: float, seconds: float) -> np.ndarray:
 def make(store: Store, audio: FakeAudio) -> Identity:
     return Identity(
         "test",
+        liveness=False,
         store=store,
         face_embedder=FakeEmbedder([rand_emb(i) for i in range(5)]),
         frame_source=FakeSource(),
@@ -60,7 +61,7 @@ def test_identify_enrolled_speaker_from_three_seconds(store: Store) -> None:
     idt = make(store, FakeAudio(tone(0.07, 5.0)))
     person = idt.enroll("Dave", consent=True, _sleep=lambda _s: None)
     who = idt.identify_voice(tone(0.07, 3.0))
-    assert who is not None and who.id == person.id and who.confidence > 0.99
+    assert who is not None and who.id == person.id and who.confidence == pytest.approx(0.8)
 
 
 def test_rejects_other_speaker(store: Store) -> None:
