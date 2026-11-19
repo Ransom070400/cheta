@@ -7,7 +7,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -15,6 +15,7 @@ from numpy.typing import NDArray
 from cheta.face.capture import FrameSource, WebcamSource
 from cheta.face.embedder import FaceEmbedder, SFaceEmbedder
 from cheta.face.matcher import DEFAULT_THRESHOLD, match
+from cheta.memory import BgeEmbedder, Memory, TextEmbedder
 from cheta.person import Person
 from cheta.presence import ABSENCE_SECONDS, ARRIVE_FRAMES, PresenceTracker
 from cheta.storage import Store
@@ -47,6 +48,7 @@ class Identity:
         store: Store | None = None,
         face_embedder: FaceEmbedder | None = None,
         frame_source: FrameSource | None = None,
+        text_embedder: TextEmbedder | None = None,
     ) -> None:
         if camera not in ("webcam", "reachy"):
             raise ValueError("camera must be 'webcam' or 'reachy'")
@@ -66,6 +68,7 @@ class Identity:
         self._lock = threading.Lock()
         self._embedder = face_embedder
         self._source = frame_source
+        self._text_embedder = text_embedder
 
     def _get_embedder(self) -> FaceEmbedder:
         if self._embedder is None:
@@ -189,6 +192,62 @@ class Identity:
         self._thread = None
         with self._lock:
             self._latest = None
+
+    def _get_text_embedder(self) -> TextEmbedder:
+        if self._text_embedder is None:
+            self._text_embedder = BgeEmbedder()
+        return self._text_embedder
+
+    def _require_person(self, person: Person) -> None:
+        if self.store.get_person(person.id) is None:
+            raise KeyError(f"unknown person {person.id!r}")
+
+    def remember(self, person: Person, text: str, expires_in_days: int | None = None) -> None:
+        """Store a fact about ``person``; it stops being recalled after ``expires_in_days``."""
+        if not text.strip():
+            raise ValueError("text must not be empty")
+        if expires_in_days is not None and expires_in_days <= 0:
+            raise ValueError("expires_in_days must be positive")
+        self._require_person(person)
+        expires_at = None if expires_in_days is None else time.time() + expires_in_days * 86400
+        embedding = self._get_text_embedder().embed_document(text.strip())
+        self.store.purge_expired()
+        self.store.add_memory(person.id, text.strip(), embedding, expires_at)
+
+    def recall(self, person: Person, query: str, k: int = 5) -> list[Memory]:
+        """Return up to ``k`` unexpired memories of ``person``, most relevant first."""
+        if k < 1:
+            raise ValueError("k must be at least 1")
+        self._require_person(person)
+        query_embedding = self._get_text_embedder().embed_query(query)
+        self.store.purge_expired()
+        return self.store.search_memories(person.id, query_embedding, k)
+
+    def forget(self, person: Person) -> None:
+        """Hard-delete everything about ``person``: face embeddings and memories."""
+        self.store.delete_person(person.id)
+        self._gallery = None
+        with self._lock:
+            if self._latest is not None and self._latest.id == person.id:
+                self._latest = None
+
+    def export(self, person: Person) -> dict[str, Any]:
+        """Return everything stored about ``person`` as a JSON-serialisable dict.
+
+        Biometric templates are reported as counts only; they are never exported.
+        """
+        stored = self.store.get_person(person.id)
+        if stored is None:
+            raise KeyError(f"unknown person {person.id!r}")
+        return {
+            "id": stored.id,
+            "name": stored.name,
+            "face_samples": len(self.store.face_embeddings(person.id)),
+            "memories": [
+                {"text": m.text, "created_at": m.created_at, "expires_at": m.expires_at}
+                for m in self.store.list_memories(person.id)
+            ],
+        }
 
     def close(self) -> None:
         """Release the camera and database."""
