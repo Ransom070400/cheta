@@ -70,9 +70,10 @@ class SFaceEmbedder:
     def observe(self, frame: Frame) -> FaceObservation | None:
         h, w = frame.shape[:2]
         self._detector.setInputSize((w, h))
-        _, faces = self._detector.detect(frame)
-        if faces is None:
+        _, detected = self._detector.detect(frame)
+        if detected is None:
             return None
+        faces: list[NDArray[np.float32]] = list(detected)
         good = [
             f for f in faces if f[14] >= MIN_DETECTION_SCORE and min(f[2], f[3]) >= MIN_FACE_SIZE
         ]
