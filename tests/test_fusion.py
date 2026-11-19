@@ -1,3 +1,5 @@
+import pytest
+
 from cheta.fusion import SINGLE_MODALITY_FACTOR, Evidence, fuse
 
 
@@ -39,3 +41,17 @@ def test_conflict_returns_none() -> None:
 
 def test_perfect_both_is_one() -> None:
     assert fuse(ev("a", 1.0), ev("a", 1.0)) == ("a", 1.0)
+
+
+def test_single_factor_is_configurable() -> None:
+    perfect = ev("a", 1.0)
+    assert fuse(perfect, None, single_factor=1.0) == ("a", 1.0)
+    assert fuse(None, perfect, single_factor=0.5) == ("a", 0.5)
+    both = fuse(perfect, perfect, single_factor=0.1)
+    assert both == ("a", 1.0)  # the factor only affects a lone signal
+
+
+@pytest.mark.parametrize("bad", [0.0, -0.1, 1.5])
+def test_single_factor_validated(bad: float) -> None:
+    with pytest.raises(ValueError):
+        fuse(ev("a", 0.9), None, single_factor=bad)
