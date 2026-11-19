@@ -297,7 +297,7 @@ class Identity:
 
     def _voice_loop(self) -> None:
         """Background listener: keeps the latest voice evidence fresh for fusion."""
-        buffer = np.zeros(0, dtype=np.float32)
+        buffer: NDArray[np.float32] = np.zeros(0, dtype=np.float32)
         while not self._stop.is_set():
             try:
                 chunk = self._get_audio().record(VOICE_CHUNK_S)
