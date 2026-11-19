@@ -51,3 +51,28 @@ def test_forget_cancelled(
 
 def test_forget_unknown(tmp_path: Path) -> None:
     assert main(["--data-dir", str(tmp_path), "forget", "--name", "Nobody", "--yes"]) == 1
+
+
+def test_remember_and_recall(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from cheta import Identity
+    from cheta.storage import Store
+    from tests.conftest import FakeTextEmbedder
+
+    s = Store(tmp_path, "cheta")
+    s.add_person("Dave", consent=True)
+    s.close()
+    # The CLI builds its own Identity; give it the offline embedder instead of downloading BGE.
+    original = Identity.__init__
+
+    def patched(self: Identity, *a: object, **kw: object) -> None:
+        kw["text_embedder"] = FakeTextEmbedder()
+        original(self, *a, **kw)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Identity, "__init__", patched)
+    d = ["--data-dir", str(tmp_path)]
+    assert main([*d, "remember", "--name", "Dave", "Dave plays the guitar"]) == 0
+    assert main([*d, "recall", "--name", "Dave", "guitar", "-k", "1"]) == 0
+    assert "Dave plays the guitar" in capsys.readouterr().out
+    assert main([*d, "remember", "--name", "Nobody", "x"]) == 1
