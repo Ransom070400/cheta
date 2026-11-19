@@ -9,10 +9,13 @@ from __future__ import annotations
 from collections import deque
 from statistics import median
 
-TURN_RANGE = 0.35  # required spread of the yaw proxy; a flat photo moved by hand stays < 0.2
+TURN_RANGE = 0.35  # required spread of the smoothed yaw proxy
 WINDOW_S = 6.0  # the turn must happen within this many seconds
 MIN_SAMPLES = 6
-SMOOTH = 3  # median filter width, so a single noisy landmark frame cannot pass the check
+# Median filter width. YuNet's landmarks jitter (std ~0.07) on a photo waved about at +-40 degrees;
+# with width 5 that never exceeds 0.18 in a window (width 3 reached 0.28), while a real turn of
+# +-0.3 keeps a smoothed range of about 0.6.
+SMOOTH = 5
 
 CHALLENGE = "Please slowly turn your head to the left, then to the right."
 
