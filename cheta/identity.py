@@ -119,6 +119,7 @@ class Identity:
         self._verified_seen = 0.0
         self._last_prompt = float("-inf")
         self._voice_evidence: tuple[Evidence, float] | None = None
+        self._face_center: tuple[tuple[float, float], float] | None = None
 
     # -- lazy components ---------------------------------------------------------------------
 
@@ -353,6 +354,9 @@ class Identity:
             if current is None or current.id != voice.person_id:
                 voice = None
         fused = fuse(face, voice)
+        if face is not None and obs is not None and obs.center is not None:
+            with self._lock:
+                self._face_center = (obs.center, time.monotonic())
         return self._person(*fused) if fused else None
 
     def _snapshot(self) -> Person | None:
@@ -376,6 +380,17 @@ class Identity:
             limit = self._live.window_s if seen_known else SNAPSHOT_NO_FACE_S
             if now - start > limit:
                 return None
+
+    def face_position(self, max_age_s: float = 1.0) -> tuple[int, int] | None:
+        """Pixel ``(u, v)`` of the recognised, live face in the latest camera frame, if recent.
+
+        Lets an app aim the robot's head at the person, e.g. from ``on_person_arrived``.
+        """
+        with self._lock:
+            held = self._face_center
+        if held is None or time.monotonic() - held[1] > max_age_s:
+            return None
+        return int(held[0][0]), int(held[0][1])
 
     def who_is_here(self) -> Person | None:
         """Return the person in view (name + confidence), or None if nobody known is there.
