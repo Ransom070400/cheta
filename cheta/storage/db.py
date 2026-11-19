@@ -1,4 +1,4 @@
-"""SQLite store: people and their encrypted biometric embeddings (one file per app)."""
+"""SQLite store: people, memories, and their encrypted data (one file per app)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,13 @@ from numpy.typing import NDArray
 
 from cheta.memory.types import Memory
 from cheta.person import Person
-from cheta.storage.crypto import decrypt_embedding, encrypt_embedding, load_or_create_key
+from cheta.storage.crypto import (
+    decrypt_embedding,
+    decrypt_text,
+    encrypt_embedding,
+    encrypt_text,
+    load_or_create_key,
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS person (
@@ -40,7 +46,7 @@ CREATE INDEX IF NOT EXISTS voice_embedding_person ON voice_embedding(person_id);
 CREATE TABLE IF NOT EXISTS memory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     person_id TEXT NOT NULL REFERENCES person(id) ON DELETE CASCADE,
-    text TEXT NOT NULL,
+    text BLOB NOT NULL,
     embedding BLOB NOT NULL,
     created_at REAL NOT NULL,
     expires_at REAL
@@ -64,7 +70,7 @@ def _locked(fn: F) -> F:
 
 
 class Store:
-    """Encrypted persistent store. Biometric embeddings are only ever written encrypted."""
+    """Encrypted persistent store: embeddings and memory text are only written encrypted."""
 
     def __init__(self, data_dir: str | Path, app: str, key: bytes | None = None) -> None:
         self.data_dir = Path(data_dir).expanduser()
@@ -200,7 +206,7 @@ class Store:
             " VALUES (?, ?, ?, ?, ?)",
             (
                 person_id,
-                text,
+                encrypt_text(self._key, text),
                 np.asarray(embedding, dtype=np.float32).tobytes(),
                 time.time(),
                 expires_at,
@@ -228,7 +234,7 @@ class Store:
                 k,
             ),
         ).fetchall()
-        return [Memory(*r) for r in rows]
+        return [self._memory(r) for r in rows]
 
     @_locked
     def list_memories(self, person_id: str) -> list[Memory]:
@@ -238,7 +244,7 @@ class Store:
             " WHERE person_id = ? ORDER BY id",
             (person_id,),
         ).fetchall()
-        return [Memory(*r) for r in rows]
+        return [self._memory(r) for r in rows]
 
     @_locked
     def purge_expired(self, now: float | None = None) -> int:
@@ -249,6 +255,11 @@ class Store:
                 (time.time() if now is None else now,),
             )
         return cur.rowcount
+
+    def _memory(self, row: tuple[Any, ...]) -> Memory:
+        """Build a Memory from a row, decrypting its text (plaintext legacy rows pass through)."""
+        text = row[2] if isinstance(row[2], str) else decrypt_text(self._key, row[2])
+        return Memory(row[0], row[1], text, *row[3:])
 
     def _require_vec(self) -> None:
         if not self.has_vec:
