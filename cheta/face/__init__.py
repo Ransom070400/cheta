@@ -1,5 +1,11 @@
 """Face detection and embedding."""
 
-from cheta.face.embedder import FaceEmbedder, SFaceEmbedder, cosine_similarity
+from cheta.face.embedder import (
+    FaceEmbedder,
+    FaceObservation,
+    SFaceEmbedder,
+    cosine_similarity,
+    head_yaw,
+)
 
-__all__ = ["FaceEmbedder", "SFaceEmbedder", "cosine_similarity"]
+__all__ = ["FaceEmbedder", "FaceObservation", "SFaceEmbedder", "cosine_similarity", "head_yaw"]
