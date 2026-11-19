@@ -71,3 +71,16 @@ def decrypt_embedding(key: bytes, token: bytes) -> NDArray[np.float32]:
     """
     arr: NDArray[np.float32] = np.frombuffer(Fernet(key).decrypt(token), dtype=np.float32).copy()
     return arr
+
+
+def encrypt_text(key: bytes, text: str) -> bytes:
+    """Encrypt a UTF-8 string into a Fernet token."""
+    return Fernet(key).encrypt(text.encode("utf-8"))
+
+
+def decrypt_text(key: bytes, token: bytes) -> str:
+    """Decrypt a Fernet token back into a string.
+
+    Raises ``cryptography.fernet.InvalidToken`` if the key is wrong or the data was tampered with.
+    """
+    return Fernet(key).decrypt(token).decode("utf-8")
