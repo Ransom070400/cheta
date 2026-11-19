@@ -158,3 +158,26 @@ def test_connect_robot_explains_the_missing_extra(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(builtins, "__import__", fake_import)
     with pytest.raises(ImportError, match=r"cheta\[robot\]"):
         connect_robot()
+
+
+def test_identity_uses_the_robot_for_camera_and_microphone(store) -> None:  # type: ignore[no-untyped-def]
+    from cheta import Identity
+
+    mini = FakeMini()
+    idt = Identity("test", camera="reachy", store=store, robot=mini)
+    assert isinstance(idt._get_source(), ReachyFrameSource)
+    assert isinstance(idt._get_audio(), ReachyAudioSource)
+    webcam = Identity("test2", camera="webcam", store=store)
+    assert not isinstance(webcam._get_audio(), ReachyAudioSource)
+
+
+def test_identity_without_the_sdk_explains_how_to_install(store, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import cheta.identity as identity_mod
+    from cheta import Identity
+
+    def missing() -> Any:
+        raise ImportError('pip install "cheta[robot]"')
+
+    monkeypatch.setattr(identity_mod, "connect_robot", missing)
+    with pytest.raises(ImportError, match=r"cheta\[robot\]"):
+        Identity("test", camera="reachy", store=store)._get_source()
