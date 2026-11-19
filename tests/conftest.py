@@ -1,3 +1,6 @@
+import time
+from collections.abc import Sequence
+from itertools import cycle
 from pathlib import Path
 
 import numpy as np
@@ -99,6 +102,7 @@ class FakeAudio:
         self.requested: list[float] = []
 
     def record(self, seconds: float) -> NDArray[np.float32]:
+        time.sleep(0.01)  # keep background listener loops from spinning hot
         self.requested.append(seconds)
         return self.audio[: int(seconds * 16_000)]
 
@@ -113,3 +117,18 @@ class FakeVoiceEmbedder:
 
     def embed(self, audio: NDArray[np.float32]) -> NDArray[np.float32]:
         return rand_emb(int(round(float(audio.mean()) * 100)), dim=192)
+
+
+class CycleEmbedder:
+    """One person's face with a scripted yaw per frame: simulates a head turn or a photo."""
+
+    def __init__(self, embedding: NDArray[np.float32], yaws: Sequence[float]) -> None:
+        self.embedding = embedding
+        self._yaws = cycle(yaws)
+
+    def observe(self, frame: Frame) -> FaceObservation | None:
+        return FaceObservation(self.embedding, next(self._yaws))
+
+
+TURNING = (-0.3, -0.3, 0.0, 0.3, 0.3, 0.0)  # a person turning left then right
+PHOTO = (0.02, 0.03, 0.01, 0.04, 0.02, 0.03)  # a flat photo: landmarks jitter, nothing more
