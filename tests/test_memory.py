@@ -68,11 +68,15 @@ def test_memories_are_per_person(idt: Identity, dave: Person, store: Store) -> N
     assert [m.text for m in idt.recall(ann, "likes", k=5)] == ["Ann likes coffee"]
 
 
-def test_expired_memories_not_recalled_and_purged(idt: Identity, dave: Person, store: Store) -> None:
+def test_expired_memories_not_recalled_and_purged(
+    idt: Identity, dave: Person, store: Store
+) -> None:
     idt.remember(dave, "Dave has a cold", expires_in_days=1)
     idt.remember(dave, "Dave likes tea")
     assert len(idt.recall(dave, "Dave")) == 2
-    store._db.execute("UPDATE memory SET expires_at = ? WHERE text = ?", (time.time() - 1, "Dave has a cold"))
+    store._db.execute(
+        "UPDATE memory SET expires_at = ? WHERE text = ?", (time.time() - 1, "Dave has a cold")
+    )
     assert [m.text for m in idt.recall(dave, "Dave")] == ["Dave likes tea"]
     assert len(store.list_memories(dave.id)) == 1  # purged
 
