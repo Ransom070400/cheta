@@ -75,6 +75,35 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_forget(args: argparse.Namespace) -> int:
+    """Hard-delete a person: face samples and memories."""
+    idt = _identity(args)
+    try:
+        matches = idt.store.find_by_name(args.name) if args.name else []
+        if args.id:
+            person = idt.store.get_person(args.id)
+            matches = [person] if person else []
+        if not matches:
+            print("No such person.")
+            return 1
+        if len(matches) > 1:
+            print("Several people match; pass --id:")
+            for p in matches:
+                print(f"  {p.id}  {p.name}")
+            return 1
+        person = matches[0]
+        if not args.yes:
+            answer = input(f"Permanently delete {person.name} and all their data? [y/N] ")
+            if answer.strip().lower() not in ("y", "yes"):
+                print("Cancelled.")
+                return 1
+        idt.forget(person)
+    finally:
+        idt.close()
+    print(f"Forgot {person.name}.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(prog="cheta", description=__doc__)
@@ -91,6 +120,13 @@ def build_parser() -> argparse.ArgumentParser:
     demo = sub.add_parser("demo", help="live recognition from the camera")
     demo.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     demo.set_defaults(func=cmd_demo)
+
+    forget = sub.add_parser("forget", help="delete a person and all their data")
+    who = forget.add_mutually_exclusive_group(required=True)
+    who.add_argument("--name")
+    who.add_argument("--id")
+    forget.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
+    forget.set_defaults(func=cmd_forget)
 
     lst = sub.add_parser("list", help="list enrolled people")
     lst.set_defaults(func=cmd_list)
