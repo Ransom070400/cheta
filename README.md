@@ -26,7 +26,7 @@ Python 3.10 or newer. On Linux, text-to-speech in the greeter example needs `esp
 ```python
 from cheta import Identity
 
-idt = Identity(app="my_app", camera="webcam")    # camera="reachy" with the robot
+idt = Identity(app="my_app", camera="webcam")  # camera="reachy" with the robot
 
 # Enrol someone, with their consent. They are asked to turn their head (liveness).
 alice = idt.enroll("Alice", consent=True)
@@ -35,13 +35,13 @@ idt.remember(alice, "Alice is learning the cello", expires_in_days=90)
 
 idt.on_person_arrived(lambda p: print("hello", p.name, p.confidence))
 idt.on_person_left(lambda p: print("bye", p.name))
-idt.start()                                      # background recognition loop
+idt.start()  # background recognition loop
 
-print(idt.who_is_here())                         # Person or None
+print(idt.who_is_here())  # Person or None
 print(idt.recall(alice, "what instrument?", k=3))
-print(idt.export(alice))                         # everything stored about Alice
+print(idt.export(alice))  # everything stored about Alice
 
-idt.forget(alice)                                # hard delete
+idt.forget(alice)  # hard delete
 idt.stop()
 ```
 
