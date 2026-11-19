@@ -9,6 +9,7 @@ description = "On-device face and voice recognition, memory and forgetting for R
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
+authors = [{ name = "Eze Ransom" }]
 dependencies = [
     "cryptography>=50.0.2",
     "huggingface-hub>=0.24",
