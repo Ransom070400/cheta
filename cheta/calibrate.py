@@ -11,10 +11,13 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 
+from cheta.robot import resample
+from cheta.speech import read_wav
 from cheta.voice import (
     SAMPLE_RATE,
     Audio,
@@ -109,3 +112,23 @@ def score_voices(
     if not genuine:
         raise ValueError("no probe clip had enough speech")
     return genuine, impostor
+
+
+def load_voice_dir(path: Path) -> tuple[dict[str, Audio], dict[str, list[Audio]]]:
+    """Read ``<name>_<n>.wav`` files: a person's lowest ``n`` enrols them, the rest are probes."""
+    clips: dict[str, list[tuple[int, Audio]]] = {}
+    for wav in sorted(Path(path).glob("*.wav")):
+        name, _, number = wav.stem.rpartition("_")
+        if not name or not number.isdigit():
+            raise ValueError(f"{wav.name}: expected a file name like <name>_<number>.wav")
+        samples, rate = read_wav(wav)
+        clips.setdefault(name, []).append((int(number), resample(samples, rate, SAMPLE_RATE)))
+    enrol: dict[str, Audio] = {}
+    probes: dict[str, list[Audio]] = {}
+    for name, items in clips.items():
+        items.sort(key=lambda item: item[0])
+        if len(items) < 2:
+            raise ValueError(f"{name!r} needs at least two clips: one to enrol, one to test")
+        enrol[name] = items[0][1]
+        probes[name] = [audio for _, audio in items[1:]]
+    return enrol, probes
