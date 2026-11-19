@@ -70,11 +70,13 @@ python examples/greeter.py --camera reachy
 
 ## How it works
 
+Every model is pinned to the exact Hugging Face commit cheta was tested with (`cheta/models.py`).
+
 | Piece | Implementation |
 | --- | --- |
 | Face | OpenCV YuNet detector + SFace embedding |
 | Voice | Silero VAD + SpeechBrain ECAPA embedding |
-| Memory | BGE-small embeddings, searched with sqlite-vec |
+| Memory | BGE-small embeddings, decrypted and searched per person |
 | Storage | SQLite; face/voice embeddings and memory text Fernet-encrypted; key in the OS keyring (5 s timeout) or a 0600 key file |
 | Matching | Cosine similarity with a configurable threshold; below it the answer is `None` |
 | Fusion | Face and voice agreeing raises confidence; a single signal is capped at 0.8; a conflict returns `None` |
@@ -83,12 +85,10 @@ python examples/greeter.py --camera reachy
 
 - **Liveness is a head-turn check only.** It stops a flat photo held up to the camera. It does not
   stop video replay, masks or deepfakes. Do not use cheta to guard anything valuable.
-- Memory text and face/voice embeddings are encrypted at rest. The *embedding of each memory* (used for
-  search) is not, because SQLite's vector search must read it. It reveals roughly what a memory is
-  about, not its text.
+- Everything stored about a person is encrypted at rest: face and voice embeddings, memory text and
+  memory embeddings. Only ids, names, timestamps and expiry times are in the clear.
 - `Person.confidence` is rescaled: a single signal tops out at 0.8.
 - Voice recognition is weaker than face recognition; tune `voice_threshold` for your setting.
-- Model revisions from the Hugging Face Hub are not pinned.
 - Tested against the Reachy Mini SDK source and fakes, not yet on a physical robot.
 
 ## Development
