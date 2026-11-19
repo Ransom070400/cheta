@@ -5,7 +5,7 @@ import pytest
 from cryptography.fernet import Fernet
 from numpy.typing import NDArray
 
-from cheta.face.embedder import Frame
+from cheta.face.embedder import FaceObservation, Frame
 from cheta.storage import Store
 
 
@@ -17,6 +17,10 @@ class FakeEmbedder:
 
     def embed(self, frame: Frame) -> NDArray[np.float32] | None:
         return self.seq.pop(0) if self.seq else None
+
+    def observe(self, frame: Frame) -> FaceObservation | None:
+        emb = self.embed(frame)
+        return FaceObservation(emb, 0.0) if emb is not None else None
 
 
 class FakeSource:
@@ -53,6 +57,13 @@ class LiveEmbedder:
 
     def embed(self, frame: Frame) -> NDArray[np.float32] | None:
         return self.current
+
+    def observe(self, frame: Frame) -> FaceObservation | None:
+        return FaceObservation(self.current, self.yaw()) if self.current is not None else None
+
+    def yaw(self) -> float:
+        """Yaw reported for the current frame; tests override this to script head turns."""
+        return 0.0
 
 
 class FakeTextEmbedder:
