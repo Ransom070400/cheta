@@ -31,6 +31,12 @@ CREATE TABLE IF NOT EXISTS face_embedding (
     blob BLOB NOT NULL
 );
 CREATE INDEX IF NOT EXISTS face_embedding_person ON face_embedding(person_id);
+CREATE TABLE IF NOT EXISTS voice_embedding (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id TEXT NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    blob BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS voice_embedding_person ON voice_embedding(person_id);
 CREATE TABLE IF NOT EXISTS memory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     person_id TEXT NOT NULL REFERENCES person(id) ON DELETE CASCADE,
@@ -121,6 +127,32 @@ class Store:
         """Return decrypted face embeddings for everyone, keyed by person id."""
         out: dict[str, list[NDArray[np.float32]]] = {}
         rows = self._db.execute("SELECT person_id, blob FROM face_embedding ORDER BY id")
+        for person_id, blob in rows:
+            out.setdefault(person_id, []).append(decrypt_embedding(self._key, blob))
+        return out
+
+    @_locked
+    def add_voice_embeddings(self, person_id: str, embeddings: list[NDArray[np.float32]]) -> None:
+        """Encrypt and store voice embeddings for a person."""
+        with self._db:
+            self._db.executemany(
+                "INSERT INTO voice_embedding (person_id, blob) VALUES (?, ?)",
+                [(person_id, encrypt_embedding(self._key, e)) for e in embeddings],
+            )
+
+    @_locked
+    def voice_embeddings(self, person_id: str) -> list[NDArray[np.float32]]:
+        """Return a person's decrypted voice embeddings."""
+        rows = self._db.execute(
+            "SELECT blob FROM voice_embedding WHERE person_id = ? ORDER BY id", (person_id,)
+        ).fetchall()
+        return [decrypt_embedding(self._key, r[0]) for r in rows]
+
+    @_locked
+    def all_voice_embeddings(self) -> dict[str, list[NDArray[np.float32]]]:
+        """Return decrypted voice embeddings for everyone, keyed by person id."""
+        out: dict[str, list[NDArray[np.float32]]] = {}
+        rows = self._db.execute("SELECT person_id, blob FROM voice_embedding ORDER BY id")
         for person_id, blob in rows:
             out.setdefault(person_id, []).append(decrypt_embedding(self._key, blob))
         return out
