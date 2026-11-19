@@ -75,7 +75,7 @@ python examples/greeter.py --camera reachy
 | Face | OpenCV YuNet detector + SFace embedding |
 | Voice | Silero VAD + SpeechBrain ECAPA embedding |
 | Memory | BGE-small embeddings, searched with sqlite-vec |
-| Storage | SQLite, embeddings Fernet-encrypted; key in the OS keyring or a 0600 key file |
+| Storage | SQLite; face/voice embeddings and memory text Fernet-encrypted; key in the OS keyring (5 s timeout) or a 0600 key file |
 | Matching | Cosine similarity with a configurable threshold; below it the answer is `None` |
 | Fusion | Face and voice agreeing raises confidence; a single signal is capped at 0.8; a conflict returns `None` |
 
