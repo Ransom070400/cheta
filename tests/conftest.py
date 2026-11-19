@@ -130,5 +130,6 @@ class CycleEmbedder:
         return FaceObservation(self.embedding, next(self._yaws))
 
 
-TURNING = (-0.3, -0.3, 0.0, 0.3, 0.3, 0.0)  # a person turning left then right
+# A person turning left then right, about 1 s per phase at 30 fps (a turn is slow; noise is fast).
+TURNING = (-0.3,) * 8 + (0.0,) * 4 + (0.3,) * 8 + (0.0,) * 4
 PHOTO = (0.02, 0.03, 0.01, 0.04, 0.02, 0.03)  # a flat photo: landmarks jitter, nothing more
