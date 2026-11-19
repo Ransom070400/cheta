@@ -109,3 +109,22 @@ def test_face_position_goes_stale(store: Store) -> None:
     idt._face_center = ((10.0, 20.0), time.monotonic() - 5)
     assert idt.face_position() is None
     assert idt.face_position(max_age_s=10) == (10, 20)
+
+
+def test_single_modality_factor_option(store: Store) -> None:
+    p = store.add_person("Dave", consent=True)
+    store.add_face_embeddings(p.id, [rand_emb(1)])
+    emb = LiveEmbedder()
+    emb.current = rand_emb(1)
+    idt = Identity(
+        "test",
+        store=store,
+        face_embedder=emb,
+        frame_source=FakeSource(),
+        liveness=False,
+        single_modality_factor=1.0,
+    )
+    who = idt.who_is_here()
+    assert who is not None and who.confidence == pytest.approx(1.0)
+    with pytest.raises(ValueError):
+        Identity("test", store=store, single_modality_factor=0.0)
