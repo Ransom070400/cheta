@@ -101,7 +101,8 @@ Every model is pinned to the exact Hugging Face commit cheta was tested with (`c
   stop video replay, masks or deepfakes. Do not use cheta to guard anything valuable.
 - Everything stored about a person is encrypted at rest: face and voice embeddings, memory text and
   memory embeddings. Only ids, names, timestamps and expiry times are in the clear.
-- `Person.confidence` is rescaled: a single signal tops out at 0.8.
+- `Person.confidence` is rescaled: a single signal tops out at 0.8 by default, because nothing
+  corroborates it. Change it with `Identity(single_modality_factor=...)` (1.0 means no penalty).
 - Voice recognition is weaker than face recognition and depends on your microphone and room. The
   default `voice_threshold` is only a starting point; run `cheta calibrate` on your own recordings.
   Voice alone never starts a presence, it only corroborates a face.
