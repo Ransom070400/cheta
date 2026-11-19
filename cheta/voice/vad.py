@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
+from numpy.typing import NDArray
 
 from cheta.models import download_model
 from cheta.voice.audio import SAMPLE_RATE, Audio
@@ -47,7 +48,7 @@ class SileroVAD:
         """Per-chunk speech probability."""
         session = self._load()
         state = np.zeros((2, 1, 128), dtype=np.float32)
-        context = np.zeros((1, CONTEXT), dtype=np.float32)
+        context: NDArray[np.float32] = np.zeros((1, CONTEXT), dtype=np.float32)
         sr = np.array(SAMPLE_RATE, dtype=np.int64)
         probs: list[float] = []
         for start in range(0, len(audio) - CHUNK + 1, CHUNK):
