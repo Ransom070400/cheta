@@ -27,6 +27,7 @@ class FaceObservation:
 
     embedding: NDArray[np.float32]
     yaw: float
+    center: tuple[float, float] | None = None  # face centre in frame pixels (u right, v down)
 
 
 class FaceEmbedder(Protocol):
@@ -82,7 +83,10 @@ class SFaceEmbedder:
         norm = float(np.linalg.norm(feat))
         if not norm:
             return None
-        return FaceObservation(embedding=feat / norm, yaw=head_yaw(good[0]))
+        x, y, bw, bh = (float(v) for v in good[0][:4])
+        return FaceObservation(
+            embedding=feat / norm, yaw=head_yaw(good[0]), center=(x + bw / 2, y + bh / 2)
+        )
 
     def embed(self, frame: Frame) -> NDArray[np.float32] | None:
         """Embedding only (no yaw)."""
