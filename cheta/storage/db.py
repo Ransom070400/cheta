@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import numpy as np
+from cryptography.fernet import InvalidToken
 from numpy.typing import NDArray
 
 from cheta.memory.types import Memory
@@ -79,23 +80,10 @@ class Store:
         self._key = key if key is not None else load_or_create_key(self.data_dir, app)
         self._lock = threading.RLock()
         self._db = sqlite3.connect(self.path, check_same_thread=False)
-        self._load_vec()
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.execute("PRAGMA secure_delete = ON")  # overwrite deleted content
         self._db.executescript(SCHEMA)
         self.path.chmod(0o600)
-
-    def _load_vec(self) -> None:
-        """Load the sqlite-vec extension (provides vec_distance_cosine) for memory search."""
-        try:
-            import sqlite_vec
-
-            self._db.enable_load_extension(True)
-            sqlite_vec.load(self._db)
-            self._db.enable_load_extension(False)
-            self.has_vec = True
-        except Exception:  # extension unavailable: biometrics still work, memory does not
-            self.has_vec = False
 
     @_locked
     def add_person(self, name: str, consent: bool) -> Person:
@@ -200,14 +188,13 @@ class Store:
         expires_at: float | None = None,
     ) -> int:
         """Store a memory with its embedding. Returns the memory id."""
-        self._require_vec()
         cur = self._db.execute(
             "INSERT INTO memory (person_id, text, embedding, created_at, expires_at)"
             " VALUES (?, ?, ?, ?, ?)",
             (
                 person_id,
                 encrypt_text(self._key, text),
-                np.asarray(embedding, dtype=np.float32).tobytes(),
+                encrypt_embedding(self._key, embedding),
                 time.time(),
                 expires_at,
             ),
@@ -221,20 +208,23 @@ class Store:
         self, person_id: str, query: NDArray[np.float32], k: int, now: float | None = None
     ) -> list[Memory]:
         """Return the ``k`` unexpired memories of a person most similar to ``query``."""
-        self._require_vec()
         rows = self._db.execute(
-            "SELECT id, person_id, text, created_at, expires_at,"
-            " 1.0 - vec_distance_cosine(embedding, ?) AS score"
-            " FROM memory WHERE person_id = ? AND (expires_at IS NULL OR expires_at > ?)"
-            " ORDER BY score DESC, id DESC LIMIT ?",
-            (
-                np.asarray(query, dtype=np.float32).tobytes(),
-                person_id,
-                time.time() if now is None else now,
-                k,
-            ),
+            "SELECT id, person_id, text, created_at, expires_at, embedding"
+            " FROM memory WHERE person_id = ? AND (expires_at IS NULL OR expires_at > ?)",
+            (person_id, time.time() if now is None else now),
         ).fetchall()
-        return [self._memory(r) for r in rows]
+        if k <= 0 or not rows:
+            return []
+        q = np.asarray(query, dtype=np.float32)
+        q_norm = float(np.linalg.norm(q))
+        scored: list[tuple[float, int, tuple[Any, ...]]] = []
+        for row in rows:
+            emb = self._load_embedding(row[5])
+            denom = q_norm * float(np.linalg.norm(emb))
+            score = float(np.dot(q, emb)) / denom if denom else 0.0
+            scored.append((score, row[0], row))
+        scored.sort(key=lambda t: (t[0], t[1]), reverse=True)  # best score, then newest
+        return [self._memory(row[:5], score) for score, _, row in scored[:k]]
 
     @_locked
     def list_memories(self, person_id: str) -> list[Memory]:
@@ -256,17 +246,18 @@ class Store:
             )
         return cur.rowcount
 
-    def _memory(self, row: tuple[Any, ...]) -> Memory:
+    def _memory(self, row: tuple[Any, ...], score: float | None = None) -> Memory:
         """Build a Memory from a row, decrypting its text (plaintext legacy rows pass through)."""
         text = row[2] if isinstance(row[2], str) else decrypt_text(self._key, row[2])
-        return Memory(row[0], row[1], text, *row[3:])
+        return Memory(row[0], row[1], text, row[3], row[4], *([] if score is None else [score]))
 
-    def _require_vec(self) -> None:
-        if not self.has_vec:
-            raise RuntimeError(
-                "sqlite-vec could not be loaded; memory needs a Python build with "
-                "SQLite extension support"
-            )
+    def _load_embedding(self, blob: bytes) -> NDArray[np.float32]:
+        """Decrypt a memory embedding (raw legacy rows pass through)."""
+        try:
+            return decrypt_embedding(self._key, blob)
+        except InvalidToken:
+            arr: NDArray[np.float32] = np.frombuffer(blob, dtype=np.float32).copy()
+            return arr
 
     @_locked
     def close(self) -> None:
