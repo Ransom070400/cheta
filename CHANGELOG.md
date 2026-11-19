@@ -9,7 +9,11 @@ First release.
 - Face recognition (YuNet + SFace) and voice recognition (Silero VAD + ECAPA), fused into one
   confidence.
 - Head-turn liveness during enrolment and recognition.
-- Encrypted SQLite storage; raw images and audio are never stored; hard delete on `forget`.
+- Encrypted SQLite storage of face/voice embeddings and memory text; raw images and audio are never
+  stored; hard delete on `forget`.
+- The OS keyring call times out after 5 s and falls back to a 0600 key file. If a database already
+  exists and the keyring is unresponsive with no key file, cheta refuses instead of creating a new
+  key that would orphan the data.
 - Per-person semantic memory with optional expiry.
 - Reachy Mini support (`cheta[robot]`) and `examples/greeter.py`.
 - CLI: `cheta enroll | list | forget | demo | listen | remember | recall`.
