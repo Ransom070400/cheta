@@ -21,7 +21,9 @@ def test_enroll_saves_five_samples_skipping_bad_frames(store) -> None:  # type: 
     seq = [None, rand_emb(0), rand_emb(1), None, rand_emb(2), rand_emb(3), rand_emb(4)]
     idt = make(store, seq)
     prompts: list[str] = []
-    person = idt.enroll("Dave", consent=True, on_prompt=prompts.append, _sleep=lambda _s: None)
+    person = idt.enroll(
+        "Dave", consent=True, on_prompt=prompts.append, voice=False, _sleep=lambda _s: None
+    )
     assert person.name == "Dave"
     assert len(store.face_embeddings(person.id)) == 5
     assert prompts[-1] == "Captured sample 5/5"
