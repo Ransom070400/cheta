@@ -4,7 +4,7 @@ import pytest
 
 from cheta import Identity, Person
 from cheta.storage import Store
-from tests.conftest import FakeTextEmbedder
+from tests.conftest import FakeTextEmbedder, rand_emb
 
 FACTS = {
     "Dave loves playing the guitar on weekends": "what instrument does he play",
@@ -73,10 +73,9 @@ def test_expired_memories_not_recalled_and_purged(
 ) -> None:
     idt.remember(dave, "Dave has a cold", expires_in_days=1)
     idt.remember(dave, "Dave likes tea")
+    cold_id = store.list_memories(dave.id)[0].id
     assert len(idt.recall(dave, "Dave")) == 2
-    store._db.execute(
-        "UPDATE memory SET expires_at = ? WHERE text = ?", (time.time() - 1, "Dave has a cold")
-    )
+    store._db.execute("UPDATE memory SET expires_at = ? WHERE id = ?", (time.time() - 1, cold_id))
     assert [m.text for m in idt.recall(dave, "Dave")] == ["Dave likes tea"]
     assert len(store.list_memories(dave.id)) == 1  # purged
 
@@ -135,3 +134,25 @@ def test_export(idt: Identity, dave: Person, store: Store) -> None:
 
     json.dumps(data)  # serialisable
     assert "embedding" not in json.dumps(data)
+
+
+def test_memory_text_is_encrypted_at_rest(idt: Identity, dave: Person, store: Store) -> None:
+    idt.remember(dave, "Dave's dog is called Biscuit")
+    raw = store._db.execute("SELECT text FROM memory").fetchone()[0]
+    assert isinstance(raw, bytes) and b"Biscuit" not in raw
+    assert [m.text for m in idt.recall(dave, "dog")] == ["Dave's dog is called Biscuit"]
+    assert [m.text for m in store.list_memories(dave.id)] == ["Dave's dog is called Biscuit"]
+
+
+def test_memory_text_not_in_database_file(idt: Identity, dave: Person, store: Store) -> None:
+    idt.remember(dave, "Dave's dog is called Biscuit")
+    store._db.commit()
+    assert b"Biscuit" not in store.path.read_bytes()
+
+
+def test_legacy_plaintext_memory_still_readable(idt: Identity, dave: Person, store: Store) -> None:
+    store._db.execute(
+        "INSERT INTO memory (person_id, text, embedding, created_at) VALUES (?, ?, ?, ?)",
+        (dave.id, "old plaintext", rand_emb(1).tobytes(), time.time()),
+    )
+    assert [m.text for m in store.list_memories(dave.id)] == ["old plaintext"]
