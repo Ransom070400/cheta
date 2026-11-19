@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import time
 from collections.abc import Sequence
+from pathlib import Path
 
+from cheta.calibrate import load_voice_dir, recommend_threshold, score_voices
 from cheta.face.matcher import DEFAULT_THRESHOLD
 from cheta.identity import DEFAULT_VOICE_THRESHOLD, Identity
 from cheta.person import Person
+from cheta.voice import EcapaEmbedder, SileroVAD
 
 
 def _identity(args: argparse.Namespace) -> Identity:
@@ -126,6 +129,29 @@ def cmd_listen(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_calibrate(args: argparse.Namespace) -> int:
+    """Recommend a voice threshold from recordings in a folder (nothing is enrolled or stored)."""
+    try:
+        enrol, probes = load_voice_dir(Path(args.dir))
+        genuine, impostor = score_voices(enrol, probes, SileroVAD(), EcapaEmbedder())
+        rec = recommend_threshold(genuine, impostor, max_far=args.max_far)
+    except ValueError as exc:
+        print(f"Cannot calibrate: {exc}")
+        return 1
+    print(f"{len(enrol)} people, {rec.n_genuine} genuine and {rec.n_impostor} impostor scores.")
+    print(f"genuine  : median {sorted(genuine)[len(genuine) // 2]:.2f}, lowest {min(genuine):.2f}")
+    print(
+        f"impostor : median {sorted(impostor)[len(impostor) // 2]:.2f}, highest {max(impostor):.2f}"
+    )
+    print(
+        f"Recommended voice_threshold = {rec.threshold:.3f}  "
+        f"(false accepts {rec.false_accept_rate:.1%}, false rejects {rec.false_reject_rate:.1%})"
+    )
+    if rec.n_impostor < 100:
+        print("Note: few impostor scores; the false-accept estimate is coarse. Use more clips.")
+    return 0
+
+
 def _one_person(idt: Identity, name: str) -> Person | None:
     matches = idt.store.find_by_name(name)
     if not matches:
@@ -201,6 +227,13 @@ def build_parser() -> argparse.ArgumentParser:
     listen.add_argument("--seconds", type=float, default=4.0)
     listen.add_argument("--threshold", type=float, default=DEFAULT_VOICE_THRESHOLD)
     listen.set_defaults(func=cmd_listen)
+
+    calibrate = sub.add_parser(
+        "calibrate", help="recommend a voice threshold from recordings (<name>_<n>.wav)"
+    )
+    calibrate.add_argument("dir", help="folder of <name>_1.wav (enrol), <name>_2.wav ... (tests)")
+    calibrate.add_argument("--max-far", type=float, default=0.01, help="false-accept target")
+    calibrate.set_defaults(func=cmd_calibrate)
 
     remember = sub.add_parser("remember", help="store a fact about an enrolled person")
     remember.add_argument("--name", required=True)
