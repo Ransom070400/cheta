@@ -15,7 +15,7 @@ FACTS = {
     "Dave drinks oat milk coffee every morning": "what does he drink in the morning",
     "Dave's birthday is in March": "when is his birthday",
     "Dave studied at the University of Leeds": "where did he study",
-    "Dave runs marathons for charity": "what sport does he do",
+    "Dave runs marathons for charity": "what does he do for fitness",
     "Dave's sister lives in Canada": "where does his sister live",
 }
 
