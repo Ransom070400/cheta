@@ -36,7 +36,8 @@ def feed(live: HeadTurnLiveness, yaws: list[float], dt: float = 0.1) -> bool:
 
 
 def test_head_turn_passes() -> None:
-    assert feed(HeadTurnLiveness(), [0.0, -0.1, -0.3, -0.35, -0.2, 0.0, 0.2, 0.35, 0.3, 0.0])
+    turn = [0.0, -0.1, -0.3, -0.35, -0.35, -0.3, -0.1, 0.1, 0.3, 0.35, 0.35, 0.3, 0.1, 0.0]
+    assert feed(HeadTurnLiveness(), turn)
 
 
 def test_photo_jitter_fails() -> None:
@@ -51,6 +52,7 @@ def test_flat_photo_tilted_by_hand_fails() -> None:
 
 def test_single_noisy_frame_cannot_pass() -> None:
     assert not feed(HeadTurnLiveness(), [0.0, 0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.0])
+    assert not feed(HeadTurnLiveness(), [0.0, 0.9, -0.9, 0.0, 0.9, -0.9, 0.0, 0.0, 0.0])
 
 
 def test_turn_must_happen_within_window() -> None:
@@ -198,8 +200,8 @@ def test_verification_expires_after_absence(store: Store) -> None:
     idt = make(store, TURNING, absence_seconds=1.0)
     obs = idt._observe()
     assert idt._decide(obs, 0.0) is None
-    for t in (0.1, 0.2, 0.3, 0.4, 0.5, 0.6):  # the person turns their head
-        idt._decide(idt._observe(), t)
+    for i in range(1, 30):  # the person turns their head
+        idt._decide(idt._observe(), i * 0.03)
     assert idt._verified_id == p.id
     idt._decide(None, 5.0)  # gone for longer than absence_seconds
     assert idt._verified_id is None  # a returning photo would have to pass liveness again
@@ -233,8 +235,8 @@ def with_voice(store: Store, person_voice: Person | None = None) -> tuple[Identi
 
 
 def warm_up(idt: Identity) -> None:
-    for t in (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6):
-        idt._decide(idt._observe(), t)
+    for i in range(30):
+        idt._decide(idt._observe(), i * 0.03)
 
 
 def test_face_and_voice_agree_gives_higher_confidence(store: Store) -> None:
