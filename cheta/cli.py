@@ -7,7 +7,7 @@ import time
 from collections.abc import Sequence
 
 from cheta.face.matcher import DEFAULT_THRESHOLD
-from cheta.identity import Identity
+from cheta.identity import DEFAULT_VOICE_THRESHOLD, Identity
 
 
 def _identity(args: argparse.Namespace) -> Identity:
@@ -31,10 +31,11 @@ def cmd_enroll(args: argparse.Namespace) -> int:
             return 1
     idt = _identity(args)
     try:
-        person = idt.enroll(args.name, consent=True, on_prompt=print)
+        person = idt.enroll(args.name, consent=True, on_prompt=print, voice=not args.no_voice)
     finally:
         idt.close()
-    print(f"Enrolled {person.name} ({person.id}) with 5 encrypted face samples.")
+    what = "face samples" if args.no_voice else "face and voice samples"
+    print(f"Enrolled {person.name} ({person.id}) with encrypted {what}.")
     return 0
 
 
@@ -104,6 +105,23 @@ def cmd_forget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_listen(args: argparse.Namespace) -> int:
+    """Record a few seconds from the microphone and say who is speaking."""
+    idt = Identity(
+        app=args.app,
+        camera=args.camera,
+        data_dir=args.data_dir,
+        voice_threshold=args.threshold,
+    )
+    try:
+        print(f"Speak for {args.seconds:.0f} seconds...")
+        who = idt.identify_voice(seconds=args.seconds)
+    finally:
+        idt.close()
+    print(f"speaker: {who.name} ({who.confidence:.2f})" if who else "speaker: unknown")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(prog="cheta", description=__doc__)
@@ -114,6 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     enroll = sub.add_parser("enroll", help="enroll a person from the camera")
     enroll.add_argument("--name", required=True)
+    enroll.add_argument("--no-voice", action="store_true", help="enroll by face only")
     enroll.add_argument("--yes", action="store_true", help="confirm consent without prompting")
     enroll.set_defaults(func=cmd_enroll)
 
@@ -127,6 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
     who.add_argument("--id")
     forget.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     forget.set_defaults(func=cmd_forget)
+
+    listen = sub.add_parser("listen", help="identify the speaker from the microphone")
+    listen.add_argument("--seconds", type=float, default=4.0)
+    listen.add_argument("--threshold", type=float, default=DEFAULT_VOICE_THRESHOLD)
+    listen.set_defaults(func=cmd_listen)
 
     lst = sub.add_parser("list", help="list enrolled people")
     lst.set_defaults(func=cmd_list)

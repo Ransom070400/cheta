@@ -10,7 +10,9 @@ WINDOW_S = 3.0
 STRIDE_S = 1.5
 
 
-def split_windows(speech: Audio, window_s: float = WINDOW_S, stride_s: float = STRIDE_S) -> list[Audio]:
+def split_windows(
+    speech: Audio, window_s: float = WINDOW_S, stride_s: float = STRIDE_S
+) -> list[Audio]:
     """Split speech into overlapping windows (one window if it is shorter than ``window_s``)."""
     win, stride = int(window_s * SAMPLE_RATE), int(stride_s * SAMPLE_RATE)
     if len(speech) <= win:
