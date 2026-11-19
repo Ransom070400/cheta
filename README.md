@@ -58,6 +58,20 @@ cheta forget --name Alice
 
 Global options: `--app`, `--data-dir` (default `~/.cheta`), `--camera webcam|reachy`.
 
+### Choosing a voice threshold
+
+Speaker scores depend on your microphone, room and people, so no default fits everyone. Record
+a few clips per person as `<name>_1.wav` (used to enrol), `<name>_2.wav`, `<name>_3.wav` ... (used
+as tests), with at least two people, then:
+
+```bash
+cheta calibrate recordings/ --max-far 0.01
+```
+
+It prints the lowest `voice_threshold` that keeps false accepts under your target, with the false
+rejects that costs. Nothing is enrolled or stored. Pass the result as
+`Identity(voice_threshold=...)`. More clips give a better estimate.
+
 ### Reachy greeter
 
 `examples/greeter.py` turns the robot's head to a recognised person and greets them by name,
@@ -88,7 +102,9 @@ Every model is pinned to the exact Hugging Face commit cheta was tested with (`c
 - Everything stored about a person is encrypted at rest: face and voice embeddings, memory text and
   memory embeddings. Only ids, names, timestamps and expiry times are in the clear.
 - `Person.confidence` is rescaled: a single signal tops out at 0.8.
-- Voice recognition is weaker than face recognition; tune `voice_threshold` for your setting.
+- Voice recognition is weaker than face recognition and depends on your microphone and room. The
+  default `voice_threshold` is only a starting point; run `cheta calibrate` on your own recordings.
+  Voice alone never starts a presence, it only corroborates a face.
 - Tested against the Reachy Mini SDK source and fakes, not yet on a physical robot.
 
 ## Development
