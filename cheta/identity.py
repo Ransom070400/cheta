@@ -19,10 +19,27 @@ from cheta.memory import BgeEmbedder, Memory, TextEmbedder
 from cheta.person import Person
 from cheta.presence import ABSENCE_SECONDS, ARRIVE_FRAMES, PresenceTracker
 from cheta.storage import Store
+from cheta.voice import (
+    SAMPLE_RATE,
+    Audio,
+    AudioSource,
+    EcapaEmbedder,
+    MicSource,
+    SileroVAD,
+    VoiceActivityDetector,
+    VoiceEmbedder,
+    split_windows,
+)
 
 FACE_SAMPLES = 5
 SAMPLE_GAP_S = 0.6
 ENROLL_TIMEOUT_S = 60.0
+VOICE_RECORD_S = 5.0
+VOICE_ATTEMPTS = 3
+MIN_ENROLL_SPEECH_S = 3.0
+MIN_IDENTIFY_SPEECH_S = 1.5
+IDENTIFY_RECORD_S = 4.0
+DEFAULT_VOICE_THRESHOLD = 0.5
 LOOP_INTERVAL_S = 0.1
 
 log = logging.getLogger(__name__)
@@ -43,18 +60,27 @@ class Identity:
         data_dir: str | Path = "~/.cheta",
         *,
         threshold: float = DEFAULT_THRESHOLD,
+        voice_threshold: float = DEFAULT_VOICE_THRESHOLD,
         arrive_frames: int = ARRIVE_FRAMES,
         absence_seconds: float = ABSENCE_SECONDS,
         store: Store | None = None,
         face_embedder: FaceEmbedder | None = None,
         frame_source: FrameSource | None = None,
         text_embedder: TextEmbedder | None = None,
+        audio_source: AudioSource | None = None,
+        voice_embedder: VoiceEmbedder | None = None,
+        vad: VoiceActivityDetector | None = None,
     ) -> None:
         if camera not in ("webcam", "reachy"):
             raise ValueError("camera must be 'webcam' or 'reachy'")
         self.app = app
         self.camera = camera
         self.threshold = threshold
+        self.voice_threshold = voice_threshold
+        self._audio = audio_source
+        self._voice_embedder = voice_embedder
+        self._vad = vad
+        self._voice_gallery: dict[str, list[NDArray[np.float32]]] | None = None
         self.store = store or Store(data_dir, app)
         self._gallery: dict[str, list[NDArray[np.float32]]] | None = None
         self._arrived_cbs: list[PersonCallback] = []
@@ -87,9 +113,14 @@ class Identity:
         name: str,
         consent: bool,
         on_prompt: Callable[[str], None] | None = None,
+        *,
+        voice: bool = True,
         _sleep: Callable[[float], None] = time.sleep,
     ) -> Person:
-        """Capture 5 face samples and store them encrypted. Refuses without ``consent=True``."""
+        """Capture 5 face samples and ~5 s of voice, stored encrypted; needs ``consent=True``.
+
+        Pass ``voice=False`` to enroll by face only. Nothing is stored unless every step works.
+        """
         if consent is not True:
             raise PermissionError("enroll() requires consent=True")
         if not name.strip():
@@ -115,10 +146,71 @@ class Identity:
             say(f"Captured sample {len(samples)}/{FACE_SAMPLES}")
             _sleep(SAMPLE_GAP_S)
 
+        voice_samples = self._capture_voice(say) if voice else []
+
         person = self.store.add_person(name.strip(), consent=True)
         self.store.add_face_embeddings(person.id, samples)
+        if voice_samples:
+            self.store.add_voice_embeddings(person.id, voice_samples)
         self._gallery = None
+        self._voice_gallery = None
         return person
+
+    def _get_audio(self) -> AudioSource:
+        if self._audio is None:
+            self._audio = MicSource()
+        return self._audio
+
+    def _get_vad(self) -> VoiceActivityDetector:
+        if self._vad is None:
+            self._vad = SileroVAD()
+        return self._vad
+
+    def _get_voice_embedder(self) -> VoiceEmbedder:
+        if self._voice_embedder is None:
+            self._voice_embedder = EcapaEmbedder()
+        return self._voice_embedder
+
+    def _capture_voice(self, say: Callable[[str], None]) -> list[NDArray[np.float32]]:
+        """Record until there are enough seconds of speech; return voice embeddings."""
+        audio, vad, embedder = self._get_audio(), self._get_vad(), self._get_voice_embedder()
+        for _ in range(VOICE_ATTEMPTS):
+            say(f"Say a few sentences out loud for {VOICE_RECORD_S:.0f} seconds.")
+            recording = audio.record(VOICE_RECORD_S)
+            speech = vad.speech_only(recording)
+            del recording  # never keep raw audio
+            if len(speech) >= MIN_ENROLL_SPEECH_S * SAMPLE_RATE:
+                embeddings = [embedder.embed(w) for w in split_windows(speech)]
+                if len(embeddings) > 1:  # also keep one embedding of the whole utterance
+                    embeddings.append(embedder.embed(speech))
+                say(f"Captured {len(embeddings)} voice samples")
+                return embeddings
+            say("I did not hear enough speech; let's try again.")
+        raise EnrollmentError(
+            f"need at least {MIN_ENROLL_SPEECH_S:.0f} s of speech; check the microphone"
+        )
+
+    def identify_voice(
+        self, audio: Audio | None = None, seconds: float = IDENTIFY_RECORD_S
+    ) -> Person | None:
+        """Identify the speaker from the microphone (or the given audio); None if unknown.
+
+        Needs at least 1.5 s of detected speech. ``voice_threshold`` sets how strict the match is.
+        """
+        recording = audio if audio is not None else self._get_audio().record(seconds)
+        speech = self._get_vad().speech_only(recording)
+        del recording
+        if len(speech) < MIN_IDENTIFY_SPEECH_S * SAMPLE_RATE:
+            return None
+        if self._voice_gallery is None:
+            self._voice_gallery = self.store.all_voice_embeddings()
+        hit = match(
+            self._get_voice_embedder().embed(speech), self._voice_gallery, self.voice_threshold
+        )
+        if hit is None:
+            return None
+        person = self.store.get_person(hit[0])
+        return Person(person.id, person.name, hit[1]) if person else None
 
     def _recognize(self) -> Person | None:
         """Grab one frame and return the matching person, or None (no face, or a stranger)."""
@@ -227,6 +319,7 @@ class Identity:
         """Hard-delete everything about ``person``: face embeddings and memories."""
         self.store.delete_person(person.id)
         self._gallery = None
+        self._voice_gallery = None
         with self._lock:
             if self._latest is not None and self._latest.id == person.id:
                 self._latest = None
@@ -243,6 +336,7 @@ class Identity:
             "id": stored.id,
             "name": stored.name,
             "face_samples": len(self.store.face_embeddings(person.id)),
+            "voice_samples": len(self.store.voice_embeddings(person.id)),
             "memories": [
                 {"text": m.text, "created_at": m.created_at, "expires_at": m.expires_at}
                 for m in self.store.list_memories(person.id)
