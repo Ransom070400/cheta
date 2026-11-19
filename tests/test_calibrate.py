@@ -1,8 +1,12 @@
+import wave
+from pathlib import Path
+
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from cheta.calibrate import MIN_SPEECH_S, recommend_threshold, score_voices
+from cheta import cli
+from cheta.calibrate import MIN_SPEECH_S, load_voice_dir, recommend_threshold, score_voices
 from cheta.voice import SAMPLE_RATE
 from tests.conftest import FakeVAD, rand_emb
 
@@ -93,3 +97,76 @@ def test_probes_with_too_little_speech_are_skipped_and_all_short_is_an_error() -
     assert len(genuine) >= 1
     with pytest.raises(ValueError, match="no probe clip"):
         score_voices(enrol, {"bob": [short]}, FakeVAD(), NoisyVoice())
+
+
+def write_wav(path: Path, value: float, seconds: float = 4.0, rate: int = SAMPLE_RATE) -> None:
+    # 16-bit audio holds -1..1, so store value/4 (values here are 1..3) and scale back on read
+    data = np.full(int(seconds * rate), int(value / 4 * 32767), dtype=np.int16)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(data.tobytes())
+
+
+def make_dir(tmp_path: Path) -> Path:
+    for name, i in (("ann", 1), ("bob", 2), ("cy", 3)):
+        for take in (1, 2, 3):
+            write_wav(tmp_path / f"{name}_{take}.wav", i + 0.01 * (take - 1))
+    return tmp_path
+
+
+def test_load_voice_dir_uses_lowest_number_to_enrol(tmp_path: Path) -> None:
+    enrol, probes = load_voice_dir(make_dir(tmp_path))
+    assert set(enrol) == set(probes) == {"ann", "bob", "cy"}
+    assert all(len(p) == 2 for p in probes.values())
+    assert float(enrol["bob"].mean()) * 4 == pytest.approx(2.0, abs=0.01)
+
+
+def test_load_voice_dir_resamples_to_16k(tmp_path: Path) -> None:
+    write_wav(tmp_path / "ann_1.wav", 1.0, seconds=2.0, rate=8000)
+    write_wav(tmp_path / "ann_2.wav", 1.0, seconds=2.0, rate=8000)
+    enrol, _ = load_voice_dir(tmp_path)
+    assert len(enrol["ann"]) == 2 * SAMPLE_RATE
+
+
+def test_load_voice_dir_names_may_contain_underscores(tmp_path: Path) -> None:
+    write_wav(tmp_path / "mary_jane_1.wav", 1.0)
+    write_wav(tmp_path / "mary_jane_2.wav", 1.0)
+    enrol, _ = load_voice_dir(tmp_path)
+    assert list(enrol) == ["mary_jane"]
+
+
+def test_load_voice_dir_rejects_bad_names_and_lone_clips(tmp_path: Path) -> None:
+    write_wav(tmp_path / "ann.wav", 1.0)
+    with pytest.raises(ValueError, match="<name>_<number>"):
+        load_voice_dir(tmp_path)
+    (tmp_path / "ann.wav").unlink()
+    write_wav(tmp_path / "ann_1.wav", 1.0)
+    with pytest.raises(ValueError, match="at least two clips"):
+        load_voice_dir(tmp_path)
+
+
+class WavVoice(NoisyVoice):
+    """NoisyVoice for audio that went through a WAV file (values were stored divided by 4)."""
+
+    def embed(self, audio: NDArray[np.float32]) -> NDArray[np.float32]:
+        return super().embed(audio * 4)
+
+
+def test_calibrate_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(cli, "SileroVAD", FakeVAD)
+    monkeypatch.setattr(cli, "EcapaEmbedder", WavVoice)
+    assert cli.main(["calibrate", str(make_dir(tmp_path))]) == 0
+    out = capsys.readouterr().out
+    assert "3 people" in out and "Recommended voice_threshold" in out
+    assert "false accepts 0.0%" in out and "false rejects 0.0%" in out
+
+
+def test_calibrate_command_reports_bad_input(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["calibrate", str(tmp_path)]) == 1  # no recordings at all
+    assert "Cannot calibrate" in capsys.readouterr().out
