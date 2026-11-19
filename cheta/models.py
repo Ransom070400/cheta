@@ -20,6 +20,8 @@ from huggingface_hub import hf_hub_download
 class ModelSpec:
     """A model hosted on the Hugging Face Hub.
 
+    ``revision`` is the exact commit of the repo that cheta was tested with; it is pinned so a
+    later upstream change cannot silently alter embeddings (which would break stored people).
     ``files`` are the files to fetch. ``primary`` is the file returned as the model path for
     single-file models; for multi-file models the directory containing the files is returned.
     """
@@ -28,6 +30,7 @@ class ModelSpec:
     repo_id: str
     files: tuple[str, ...]
     purpose: str
+    revision: str
     primary: str | None = None
 
 
@@ -39,6 +42,7 @@ MODELS: dict[str, ModelSpec] = {
             repo_id="opencv/face_detection_yunet",
             files=("face_detection_yunet_2023mar.onnx",),
             purpose="face detection",
+            revision="3cc26e7f1014a5ee5d74a42acee58bafc9d0a310",
             primary="face_detection_yunet_2023mar.onnx",
         ),
         ModelSpec(
@@ -46,6 +50,7 @@ MODELS: dict[str, ModelSpec] = {
             repo_id="opencv/face_recognition_sface",
             files=("face_recognition_sface_2021dec.onnx",),
             purpose="face embedding",
+            revision="3d7082438a6e4551e840c9b2bb60b71e8da4b524",
             primary="face_recognition_sface_2021dec.onnx",
         ),
         ModelSpec(
@@ -53,6 +58,7 @@ MODELS: dict[str, ModelSpec] = {
             repo_id="onnx-community/silero-vad",
             files=("onnx/model.onnx",),
             purpose="voice activity detection",
+            revision="e71cae966052b992a7eca6b17738916ce0eca4ec",
             primary="onnx/model.onnx",
         ),
         ModelSpec(
@@ -66,6 +72,7 @@ MODELS: dict[str, ModelSpec] = {
                 "label_encoder.txt",
             ),
             purpose="speaker embedding",
+            revision="0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
         ),
         ModelSpec(
             name="bge",
@@ -83,6 +90,7 @@ MODELS: dict[str, ModelSpec] = {
                 "1_Pooling/config.json",
             ),
             purpose="text embedding for memory",
+            revision="5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
         ),
     )
 }
@@ -105,7 +113,12 @@ def download_model(
         raise KeyError(f"unknown model {name!r}; choose from {sorted(MODELS)}") from None
 
     paths = [
-        Path(downloader(repo_id=spec.repo_id, filename=f, cache_dir=cache_dir)) for f in spec.files
+        Path(
+            downloader(
+                repo_id=spec.repo_id, filename=f, revision=spec.revision, cache_dir=cache_dir
+            )
+        )
+        for f in spec.files
     ]
     if spec.primary is not None:
         return paths[spec.files.index(spec.primary)]
