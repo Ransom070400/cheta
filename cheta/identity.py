@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 from cheta.face.capture import FrameSource, WebcamSource
 from cheta.face.embedder import FaceEmbedder, FaceObservation, SFaceEmbedder, cosine_similarity
 from cheta.face.matcher import DEFAULT_THRESHOLD, match
-from cheta.fusion import Evidence, fuse
+from cheta.fusion import SINGLE_MODALITY_FACTOR, Evidence, fuse
 from cheta.liveness import CHALLENGE, HeadTurnLiveness
 from cheta.memory import BgeEmbedder, Memory, TextEmbedder
 from cheta.person import Person
@@ -73,6 +73,7 @@ class Identity:
         *,
         threshold: float = DEFAULT_THRESHOLD,
         voice_threshold: float = DEFAULT_VOICE_THRESHOLD,
+        single_modality_factor: float = SINGLE_MODALITY_FACTOR,
         arrive_frames: int = ARRIVE_FRAMES,
         absence_seconds: float = ABSENCE_SECONDS,
         liveness: bool = True,
@@ -93,6 +94,9 @@ class Identity:
         self.camera = camera
         self.threshold = threshold
         self.voice_threshold = voice_threshold
+        if not 0.0 < single_modality_factor <= 1.0:
+            raise ValueError("single_modality_factor must be in (0, 1]")
+        self.single_modality_factor = single_modality_factor
         self.liveness = liveness
         self.listen_voice = listen_voice
         self._on_prompt = on_prompt
@@ -284,7 +288,7 @@ class Identity:
         speech = self._get_vad().speech_only(recording)
         del recording
         ev = self._voice_evidence_for(speech)
-        fused = fuse(None, ev)
+        fused = fuse(None, ev, self.single_modality_factor)
         return self._person(*fused) if fused else None
 
     def _person(self, person_id: str, confidence: float) -> Person | None:
@@ -365,7 +369,7 @@ class Identity:
             current = self._tracker.current
             if current is None or current.id != voice.person_id:
                 voice = None
-        fused = fuse(face, voice)
+        fused = fuse(face, voice, self.single_modality_factor)
         if face is not None and obs is not None and obs.center is not None:
             with self._lock:
                 self._face_center = (obs.center, time.monotonic())
