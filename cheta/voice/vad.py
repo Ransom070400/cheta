@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -27,9 +27,9 @@ class SileroVAD:
     def __init__(self, model_path: str | Path | None = None, threshold: float = SPEECH_PROB):
         self._path = str(model_path) if model_path else None
         self.threshold = threshold
-        self._session: object | None = None
+        self._session: Any = None
 
-    def _load(self) -> object:
+    def _load(self) -> Any:
         if self._session is None:
             import onnxruntime as ort
 
@@ -53,9 +53,7 @@ class SileroVAD:
         for start in range(0, len(audio) - CHUNK + 1, CHUNK):
             chunk = audio[start : start + CHUNK][None, :]
             x = np.concatenate([context, chunk], axis=1)
-            out, state = session.run(  # type: ignore[attr-defined]
-                None, {"input": x, "state": state, "sr": sr}
-            )
+            out, state = session.run(None, {"input": x, "state": state, "sr": sr})
             context = x[:, -CONTEXT:]
             probs.append(float(out[0][0]))
         return probs

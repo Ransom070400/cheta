@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,7 +21,7 @@ class EcapaEmbedder:
     """ECAPA-TDNN speaker encoder; the model is loaded lazily from the local cache."""
 
     def __init__(self) -> None:
-        self._model: object | None = None
+        self._model: Any = None
 
     def embed(self, audio: Audio) -> NDArray[np.float32]:
         import torch
@@ -35,7 +35,7 @@ class EcapaEmbedder:
             )
         wav = torch.from_numpy(np.asarray(audio, dtype=np.float32))[None, :]
         with torch.no_grad():
-            emb = self._model.encode_batch(wav)  # type: ignore[attr-defined]
-        vec = np.asarray(emb.squeeze().cpu().numpy(), dtype=np.float32)
+            emb = self._model.encode_batch(wav)
+        vec: NDArray[np.float32] = emb.squeeze().cpu().numpy().astype(np.float32)
         norm = float(np.linalg.norm(vec))
         return vec / norm if norm else vec
