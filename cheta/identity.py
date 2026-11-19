@@ -20,6 +20,7 @@ from cheta.liveness import CHALLENGE, HeadTurnLiveness
 from cheta.memory import BgeEmbedder, Memory, TextEmbedder
 from cheta.person import Person
 from cheta.presence import ABSENCE_SECONDS, ARRIVE_FRAMES, PresenceTracker
+from cheta.robot import ReachyAudioSource, ReachyFrameSource, connect_robot
 from cheta.storage import Store
 from cheta.voice import (
     SAMPLE_RATE,
@@ -77,6 +78,7 @@ class Identity:
         liveness: bool = True,
         listen_voice: bool = False,
         on_prompt: Callable[[str], None] | None = None,
+        robot: Any | None = None,
         store: Store | None = None,
         face_embedder: FaceEmbedder | None = None,
         frame_source: FrameSource | None = None,
@@ -110,6 +112,7 @@ class Identity:
         self._voice_thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
+        self._robot = robot
         self._embedder = face_embedder
         self._source = frame_source
         self._text_embedder = text_embedder
@@ -131,13 +134,22 @@ class Identity:
     def _get_source(self) -> FrameSource:
         if self._source is None:
             if self.camera == "reachy":
-                raise NotImplementedError("the Reachy camera arrives in M7")
-            self._source = WebcamSource()
+                self._source = ReachyFrameSource(self._get_robot())
+            else:
+                self._source = WebcamSource()
         return self._source
+
+    def _get_robot(self) -> Any:
+        """The connected ReachyMini; connects on first use if the app did not pass one."""
+        if self._robot is None:
+            self._robot = connect_robot()
+        return self._robot
 
     def _get_audio(self) -> AudioSource:
         if self._audio is None:
-            self._audio = MicSource()
+            self._audio = (
+                ReachyAudioSource(self._get_robot()) if self.camera == "reachy" else MicSource()
+            )
         return self._audio
 
     def _get_vad(self) -> VoiceActivityDetector:
