@@ -19,7 +19,6 @@ dependencies = [
     "sentence-transformers>=6.3.0",
     "sounddevice>=0.5.6",
     "speechbrain>=1.1.2",
-    "sqlite-vec>=0.1.9",
 ]
 
 [project.scripts]
@@ -51,7 +50,7 @@ markers = ["network: tests that download models (deselected by default)"]
 addopts = "-m 'not network'"
 
 [[tool.mypy.overrides]]
-module = ["sqlite_vec", "sentence_transformers", "onnxruntime", "sounddevice", "speechbrain.*", "torch", "reachy_mini"]
+module = ["sentence_transformers", "onnxruntime", "sounddevice", "speechbrain.*", "torch", "reachy_mini"]
 ignore_missing_imports = true
 
 # reachy-mini needs PyGObject only on Linux, but uv resolves every platform at once and would try
