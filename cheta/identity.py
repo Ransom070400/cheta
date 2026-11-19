@@ -271,7 +271,8 @@ class Identity:
         speech = self._get_vad().speech_only(recording)
         del recording
         ev = self._voice_evidence_for(speech)
-        return self._person(ev.person_id, ev.score) if ev else None
+        fused = fuse(None, ev)
+        return self._person(*fused) if fused else None
 
     def _person(self, person_id: str, confidence: float) -> Person | None:
         stored = self.store.get_person(person_id)
