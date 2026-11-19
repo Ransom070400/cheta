@@ -1,4 +1,5 @@
 import threading
+import time
 
 import pytest
 
@@ -82,3 +83,29 @@ def test_callback_errors_do_not_kill_loop(store: Store, monkeypatch) -> None:  #
         assert ok.wait(3)
     finally:
         idt.stop()
+
+
+def test_face_position_tracks_the_recognised_face(store: Store) -> None:
+    from cheta.face.embedder import FaceObservation
+
+    class Positioned(LiveEmbedder):
+        def observe(self, frame):  # type: ignore[no-untyped-def]
+            return FaceObservation(self.current, 0.0, center=(320.4, 180.9))
+
+    idt, emb, _ = setup(store)
+    idt._embedder = Positioned()
+    idt._embedder.current = rand_emb(1)  # type: ignore[attr-defined]
+    assert idt.face_position() is None  # nothing seen yet
+    assert idt.who_is_here() is not None
+    assert idt.face_position() == (320, 180)
+    idt._embedder.current = rand_emb(42)  # type: ignore[attr-defined]  # a stranger
+    idt._face_center = None
+    idt.who_is_here()
+    assert idt.face_position() is None  # strangers are not tracked
+
+
+def test_face_position_goes_stale(store: Store) -> None:
+    idt, _, _ = setup(store)
+    idt._face_center = ((10.0, 20.0), time.monotonic() - 5)
+    assert idt.face_position() is None
+    assert idt.face_position(max_age_s=10) == (10, 20)
