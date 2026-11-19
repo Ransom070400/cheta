@@ -78,3 +78,27 @@ class FakeTextEmbedder:
 
     def embed_query(self, text: str) -> NDArray[np.float32]:
         return self._embed(text)
+
+
+class FakeAudio:
+    """Returns pre-set audio; the fake VAD below treats any non-silent sample as speech."""
+
+    def __init__(self, audio: NDArray[np.float32] | None = None) -> None:
+        self.audio = audio if audio is not None else np.ones(16_000 * 5, dtype=np.float32)
+        self.requested: list[float] = []
+
+    def record(self, seconds: float) -> NDArray[np.float32]:
+        self.requested.append(seconds)
+        return self.audio[: int(seconds * 16_000)]
+
+
+class FakeVAD:
+    def speech_only(self, audio: NDArray[np.float32]) -> NDArray[np.float32]:
+        return audio[audio != 0]
+
+
+class FakeVoiceEmbedder:
+    """Maps audio to an embedding by its mean value: audio filled with v -> embedding for v."""
+
+    def embed(self, audio: NDArray[np.float32]) -> NDArray[np.float32]:
+        return rand_emb(int(round(float(audio.mean()) * 100)), dim=192)
