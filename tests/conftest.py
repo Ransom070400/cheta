@@ -39,7 +39,7 @@ class FakeSource:
 
 def rand_emb(seed: int, dim: int = 128) -> NDArray[np.float32]:
     v = np.random.default_rng(seed).standard_normal(dim).astype(np.float32)
-    return v / np.linalg.norm(v)
+    return (v / np.linalg.norm(v)).astype(np.float32)
 
 
 @pytest.fixture
@@ -109,7 +109,7 @@ class FakeAudio:
 
 class FakeVAD:
     def speech_only(self, audio: NDArray[np.float32]) -> NDArray[np.float32]:
-        return audio[audio != 0]
+        return np.asarray(audio[audio != 0], dtype=np.float32)
 
 
 class FakeVoiceEmbedder:

@@ -78,7 +78,7 @@ def test_robot_turns_toward_the_person_and_greets_with_a_fact(
 ) -> None:
     mini = FakeMini()
     speaker = FakeSpeaker()
-    greeter.Greeter(idt, ReachyHead(mini), speaker, topic="marathon training")  # type: ignore[arg-type]
+    greeter.Greeter(idt, ReachyHead(mini), speaker, topic="marathon training")
     idt.start()
     try:
         assert speaker.done.wait(5)
@@ -105,7 +105,7 @@ def test_same_greeter_works_on_a_laptop_with_a_print_head(
 def test_person_without_memories_just_gets_a_welcome(store: Store) -> None:
     dave = store.add_person("Dave", consent=True)
     ident = Identity("g", store=store, text_embedder=FakeTextEmbedder(), liveness=False)
-    g = greeter.Greeter(ident, RecordingHead(), FakeSpeaker())  # type: ignore[arg-type]
+    g = greeter.Greeter(ident, RecordingHead(), FakeSpeaker())
     assert g.line_for(dave) == "Welcome back Dave."
 
 
@@ -133,7 +133,7 @@ def test_speaking_does_not_block_recognition(
     left = threading.Event()
     idt.on_person_left(lambda p: left.set())
     speaker = FakeSpeaker(delay=0.5)
-    greeter.Greeter(idt, RecordingHead(), speaker)  # type: ignore[arg-type]
+    greeter.Greeter(idt, RecordingHead(), speaker)
     idt.start()
     try:
         assert speaker.done.wait(5)

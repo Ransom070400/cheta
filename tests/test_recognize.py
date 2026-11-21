@@ -90,15 +90,16 @@ def test_face_position_tracks_the_recognised_face(store: Store) -> None:
 
     class Positioned(LiveEmbedder):
         def observe(self, frame):  # type: ignore[no-untyped-def]
+            assert self.current is not None
             return FaceObservation(self.current, 0.0, center=(320.4, 180.9))
 
     idt, emb, _ = setup(store)
     idt._embedder = Positioned()
-    idt._embedder.current = rand_emb(1)  # type: ignore[attr-defined]
+    idt._embedder.current = rand_emb(1)
     assert idt.face_position() is None  # nothing seen yet
     assert idt.who_is_here() is not None
     assert idt.face_position() == (320, 180)
-    idt._embedder.current = rand_emb(42)  # type: ignore[attr-defined]  # a stranger
+    idt._embedder.current = rand_emb(42)  # a stranger
     idt._face_center = None
     idt.who_is_here()
     assert idt.face_position() is None  # strangers are not tracked
