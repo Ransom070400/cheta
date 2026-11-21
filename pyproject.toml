@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cheta"
-version = "0.1.0"
+version = "0.2.0"
 description = "On-device face and voice recognition, memory and forgetting for Reachy Mini apps."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,10 +41,9 @@ dependencies = [
     "numpy>=2.2.6",
     "onnxruntime>=1.20,<1.24; python_version < '3.11'",  # 1.24+ has no Python 3.10 wheels
     "onnxruntime>=1.20; python_version >= '3.11'",
-    "opencv-python>=5.1.0.95",
-    "sentence-transformers>=6.3.0",
+    "opencv-python-headless>=5.1.0.95",
     "sounddevice>=0.5.6",
-    "speechbrain>=1.1.2",
+    "tokenizers>=0.20",
 ]
 
 [project.urls]
@@ -75,6 +74,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.10"
 strict = true
+exclude = ["scripts/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -82,7 +82,7 @@ markers = ["network: tests that download models (deselected by default)"]
 addopts = "-m 'not network'"
 
 [[tool.mypy.overrides]]
-module = ["sentence_transformers", "onnxruntime", "sounddevice", "speechbrain.*", "torch", "reachy_mini"]
+module = ["onnxruntime", "sounddevice", "tokenizers", "tokenizers.*", "reachy_mini"]
 ignore_missing_imports = true
 
 # reachy-mini needs PyGObject only on Linux, but uv resolves every platform at once and would try

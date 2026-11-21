@@ -29,11 +29,19 @@ def test_nested_primary_returns_file(tmp_path: Path) -> None:
 
 
 def test_multi_file_returns_snapshot_dir(tmp_path: Path) -> None:
-    for name in ("ecapa", "bge"):
-        root = models.download_model(name, cache_dir=tmp_path, downloader=fake_downloader)
-        assert root.name == "abc"
-        for f in models.MODELS[name].files:
-            assert (root / f).exists()
+    root = models.download_model("bge", cache_dir=tmp_path, downloader=fake_downloader)
+    assert root.name == "abc"
+    for f in models.MODELS["bge"].files:
+        assert (root / f).exists()
+
+
+def test_every_model_belongs_to_a_group() -> None:
+    assert {m for names in models.GROUPS.values() for m in names} == set(models.MODELS)
+
+
+def test_models_cli_rejects_unknown_name() -> None:
+    with pytest.raises(SystemExit):
+        models.main(["nope"])
 
 
 def test_download_all(tmp_path: Path) -> None:

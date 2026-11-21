@@ -16,10 +16,10 @@ completely when asked. Everything runs locally.
 ```bash
 pip install cheta
 pip install "cheta[robot]"   # adds the Reachy Mini SDK (Python 3.11+)
-python -m cheta.models       # one-time download of the models from the Hugging Face Hub
+python -m cheta.models       # optional: pre-download the models (otherwise fetched on first use)
 ```
 
-Python 3.10 or newer. On Linux, text-to-speech in the greeter example needs `espeak-ng`.
+Python 3.10 or newer. No torch: everything runs on onnxruntime and OpenCV, so it installs in a few hundred MB and runs on a Raspberry Pi. On Linux, text-to-speech in the greeter example needs `espeak-ng`.
 
 ## Quickstart
 

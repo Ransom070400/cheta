@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0
+
+Much lighter install: torch, speechbrain and sentence-transformers are gone.
+
+- Speaker recognition and memory search now run on onnxruntime. Same weights as before, so
+  embeddings are unchanged (cosine similarity >= 0.9999999 against the torch pipeline) and people
+  enrolled with 0.1.0 keep working.
+- The ECAPA speaker model is now an ONNX export hosted at `Ransom070/cheta-ecapa-onnx`
+  (`scripts/export_ecapa_onnx.py` recreates it). The old `speechbrain/...` download is no longer used.
+- `opencv-python` is replaced by `opencv-python-headless`, so cheta no longer clashes with apps that
+  ship their own OpenCV build.
+- `python -m cheta.models` also takes group names: `face`, `voice`, `memory`.
+- If you had cached models from 0.1.0, run `python -m cheta.models` once to fetch the new ECAPA file.
+
 ## 0.1.0
 
 First release.

@@ -3,7 +3,8 @@
 All models come from the Hugging Face Hub and are cached locally. Downloading models is
 the only network activity cheta performs; biometrics never leave the device.
 
-Run ``python -m cheta.models`` to download every model.
+Run ``python -m cheta.models`` to download every model, or name a group (``face``, ``voice``,
+``memory``) or model to fetch only that. Models are also downloaded on first use.
 """
 
 from __future__ import annotations
@@ -63,36 +64,29 @@ MODELS: dict[str, ModelSpec] = {
         ),
         ModelSpec(
             name="ecapa",
-            repo_id="speechbrain/spkrec-ecapa-voxceleb",
-            files=(
-                "hyperparams.yaml",
-                "embedding_model.ckpt",
-                "mean_var_norm_emb.ckpt",
-                "classifier.ckpt",
-                "label_encoder.txt",
-            ),
+            # speechbrain/spkrec-ecapa-voxceleb exported to ONNX (front end included) by
+            # scripts/export_ecapa_onnx.py, so cheta needs no torch or speechbrain.
+            repo_id="Ransom070/cheta-ecapa-onnx",
+            files=("ecapa.onnx",),
             purpose="speaker embedding",
-            revision="0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+            revision="ab26b1b9bce1f1585adaf07da4188941620b40c0",
+            primary="ecapa.onnx",
         ),
         ModelSpec(
             name="bge",
             repo_id="BAAI/bge-small-en-v1.5",
-            files=(
-                "config.json",
-                "config_sentence_transformers.json",
-                "model.safetensors",
-                "modules.json",
-                "sentence_bert_config.json",
-                "special_tokens_map.json",
-                "tokenizer.json",
-                "tokenizer_config.json",
-                "vocab.txt",
-                "1_Pooling/config.json",
-            ),
+            files=("onnx/model.onnx", "tokenizer.json"),
             purpose="text embedding for memory",
             revision="5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
         ),
     )
+}
+
+# Names accepted by ``python -m cheta.models`` in addition to single model names.
+GROUPS: dict[str, tuple[str, ...]] = {
+    "face": ("yunet", "sface"),
+    "voice": ("silero_vad", "ecapa"),
+    "memory": ("bge",),
 }
 
 Downloader = Callable[..., str]
@@ -146,14 +140,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for ``python -m cheta.models``."""
     parser = argparse.ArgumentParser(prog="python -m cheta.models", description=__doc__)
     parser.add_argument(
-        "names", nargs="*", help=f"models to fetch (default: all of {sorted(MODELS)})"
+        "names",
+        nargs="*",
+        help=f"models or groups to fetch (default: all). Models: {sorted(MODELS)}. "
+        f"Groups: {sorted(GROUPS)}",
     )
     parser.add_argument("--cache-dir", default=None, help="override the Hugging Face cache dir")
     args = parser.parse_args(argv)
+    wanted: list[str] = []
     for name in args.names:
-        if name not in MODELS:
-            parser.error(f"unknown model {name!r}; choose from {sorted(MODELS)}")
-    for name in args.names or MODELS:
+        if name in GROUPS:
+            wanted.extend(GROUPS[name])
+        elif name in MODELS:
+            wanted.append(name)
+        else:
+            parser.error(f"unknown model {name!r}; choose from {sorted(MODELS) + sorted(GROUPS)}")
+    for name in dict.fromkeys(wanted or MODELS):
         print(f"downloading {name} ({MODELS[name].purpose}) from {MODELS[name].repo_id} ...")
         path = download_model(name, cache_dir=args.cache_dir)
         print(f"  -> {path}")
